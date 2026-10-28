@@ -1,0 +1,21 @@
+{
+  "name": "node-learning-starter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "用于学习 Express 的原生 JavaScript API 项目",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "_moduleAliases": {
+    "@": "src"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.4",
+    "express": "^5.2.1",
+    "module-alias": "^2.3.4",
+    "moment": "^2.31.0",
+    "mysql2": "^3.24.4"
+  }
+}
