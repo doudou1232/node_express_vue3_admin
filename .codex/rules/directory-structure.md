@@ -22,8 +22,7 @@ admin-backend/
     ├── controllers/            # 接收参数、校验、调 service、返回响应
     │   └── user.controller.js
     ├── services/               # 业务逻辑（可复用）
-    │   ├── users.service.js    # 写操作（增删）
-    │   └── user-query.service.js # 查询操作
+    │   └── users.service.js    # 用户模块（查询 + 增删改）
     ├── repositories/           # SQL 查询与数据持久化
     │   └── user.repository.js
     ├── config/

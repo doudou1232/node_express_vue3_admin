@@ -2,13 +2,6 @@
 # yarn lockfile v1
 
 
-"@types/node@>= 8":
-  version "26.6.3"
-  resolved "https://registry.npmmirror.com/@types/node/-/node-26.6.3.tgz"
-  integrity sha512-dsqMQQoeTLqu9wynDD00q573mNzso3IdQOAfHRJqLCcmCFPoGo9A1bDpUcv/9tnKpErQWv9uKeGfl37EIS02Yg==
-  dependencies:
-    undici-types "~8.9.0"
-
 accepts@^2.0.0:
   version "2.0.0"
   resolved "https://registry.npmmirror.com/accepts/-/accepts-2.0.0.tgz"
@@ -68,12 +61,7 @@ content-type@^1.0.5:
   resolved "https://registry.npmmirror.com/content-type/-/content-type-1.0.5.tgz"
   integrity sha512-nTjqfcBFEipKdXCv4YDQWCfmcLZKm81ldF0pAopTvyrFGVbcR6P/VAAd5G7N+0tTr8QqiU0tFadD6FK4NtJwOA==
 
-content-type@^2.0.0:
-  version "2.1.0"
-  resolved "https://registry.npmmirror.com/content-type/-/content-type-2.1.0.tgz"
-  integrity sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag==
-
-content-type@^2.1.0:
+content-type@^2.0.0, content-type@^2.1.0:
   version "2.1.0"
   resolved "https://registry.npmmirror.com/content-type/-/content-type-2.1.0.tgz"
   integrity sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag==
@@ -548,11 +536,6 @@ type-is@^2.0.1, type-is@^2.1.0:
     content-type "^2.0.0"
     media-typer "^1.1.0"
     mime-types "^3.0.0"
-
-undici-types@~8.9.0:
-  version "8.9.0"
-  resolved "https://registry.npmmirror.com/undici-types/-/undici-types-8.9.0.tgz"
-  integrity sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==
 
 unpipe@~1.0.0:
   version "1.0.0"

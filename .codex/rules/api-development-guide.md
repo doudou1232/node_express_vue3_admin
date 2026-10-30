@@ -135,8 +135,7 @@ await database.query(sql);
 
 ## 文件位置
 
-- 写操作：`src/services/<资源名>.service.js`
-- 查询操作：`src/services/<资源名>-query.service.js`
+`src/services/<资源名>.service.js`（一个资源的查询与写操作放同一文件）
 
 ## 引入方式
 
@@ -150,32 +149,29 @@ const { addUser, removeUserById } = require('@/repositories/user.repository');
 
 1. 保持分层结构完整，后续业务复杂化时有地方放逻辑。
 2. 控制器不需要直接依赖 repository，降低耦合。
-3. 读写分离到不同文件，职责单一。
+3. 一个资源一个 service 文件，职责单一。
 
 ```js
-// users.service.js（写操作）
-const { addUser: insertUser, removeUserById } = require('@/repositories/user.repository');
+// users.service.js（查询 + 写操作放同一文件）
+const {
+  findAllUsers,
+  addUser,
+  removeUserById
+} = require('@/repositories/user.repository');
+
+function getUsers() {
+  return findAllUsers();
+}
 
 function createUser(userInfo) {
-  return insertUser(userInfo);
+  return addUser(userInfo);
 }
 
 function removeUser(userId) {
   return removeUserById(userId);
 }
 
-module.exports = { createUser, removeUser };
-```
-
-```js
-// user-query.service.js（查询操作）
-const { findAllUsers } = require('@/repositories/user.repository');
-
-function getUsers() {
-  return findAllUsers();
-}
-
-module.exports = { findAllUsers: getUsers };
+module.exports = { getUsers, createUser, removeUser };
 ```
 
 ## 什么时候需要在 service 层写真正的逻辑
@@ -212,8 +208,7 @@ async function removeUser(userId) {
 ## 引入方式
 
 ```js
-const { createUser, removeUser } = require('@/services/users.service');
-const { findAllUsers } = require('@/services/user-query.service');
+const { createUser, removeUser, getUsers } = require('@/services/users.service');
 ```
 
 ## Express Request 可用属性

@@ -1,9 +1,10 @@
 ﻿const {
   createUser,
   updateUser: modifyUser,
-  removeUser
+  removeUser,
+  getUsers: fetchUsers,
+  getUserById: fetchUserById
 } = require('@/services/users.service');
-const { findAllUsers, findUserById } = require('@/services/user-query.service');
 
 /**
  * 创建用户。
@@ -77,7 +78,7 @@ async function getUserById(request, response) {
   let user;
 
   try {
-    user = await findUserById(userId);
+    user = await fetchUserById(userId);
   } catch (error) {
     console.error('查询用户失败：', error.message);
     return response.status(500).json({
@@ -228,7 +229,7 @@ async function deleteUser(request, response) {
  */
 async function getUsers(request, response) {
   try {
-    const users = await findAllUsers();
+    const users = await fetchUsers();
 
     return response.json({
       code: 0,
