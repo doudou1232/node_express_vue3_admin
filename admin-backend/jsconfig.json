@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["index.js", "src/**/*.js"],
+  "exclude": ["node_modules"]
+}

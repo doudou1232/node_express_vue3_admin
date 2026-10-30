@@ -12,10 +12,12 @@
  * @param {import('express').Response} response 响应对象
  */
 async function addUser(request, response) {
+  console.log(request.body);
   const {
     username,
     phone = null,
-    gender = 0,
+    email = null,
+    gender,
     status = 1
   } = request.body;
 
@@ -31,12 +33,13 @@ async function addUser(request, response) {
     const user = await createUser({
       username: String(username).trim(),
       phone: phone ? String(phone).trim() : null,
+      email: email ? String(email).trim() : null,
       gender: String(gender),
-      status: String(status)
+      status: status
     });
 
-    return response.status(201).json({
-      code: 0,
+    return response.status(200).json({
+      code: 200,
       message: '用户创建成功',
       data: user
     });
@@ -65,16 +68,7 @@ async function addUser(request, response) {
  */
 async function getUserById(request, response) {
   // 路径参数是 string，必须转换为数字后再校验
-  const userId = Number(request.params.id);
-
-  if (!Number.isInteger(userId)) {
-    return response.status(400).json({
-      code: 400,
-      message: '用户 ID 必须是数字',
-      data: null
-    });
-  }
-
+  const userId = request.params.userid;
   let user;
 
   try {
@@ -98,7 +92,7 @@ async function getUserById(request, response) {
   }
 
   return response.json({
-    code: 0,
+    code: 200,
     message: '查询成功',
     data: user
   });
@@ -223,13 +217,26 @@ async function deleteUser(request, response) {
 }
 
 /**
- * 查询全部用户。
+ * 查询用户列表，支持按用户名/手机号/邮箱模糊筛选。
  * @param {import('express').Request} request 请求对象
  * @param {import('express').Response} response 响应对象
  */
 async function getUsers(request, response) {
+  // 查询条件：用户名/手机号/邮箱，均模糊匹配，不传则查全部
+  const { username, phone, email } = request.body || {};
+  const filters = {};
+  if (username && String(username).trim()) {
+    filters.username = String(username).trim();
+  }
+  if (phone && String(phone).trim()) {
+    filters.phone = String(phone).trim();
+  }
+  if (email && String(email).trim()) {
+    filters.email = String(email).trim();
+  }
+
   try {
-    const users = await fetchUsers();
+    const users = await fetchUsers(filters);
 
     return response.json({
       code: 0,

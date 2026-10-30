@@ -7,11 +7,12 @@ const {
 } = require('@/repositories/user.repository');
 
 /**
- * 查询全部用户接口（GET /api/users）。
+ * 查询用户列表接口（POST /api/users），支持按用户名/手机号/邮箱模糊筛选。
+ * @param {object} filters 查询条件 { username, phone, email }，为空对象时查全部
  * @returns {Promise<Array>} 用户列表
  */
-function getUsers() {
-  return findAllUsers();
+function getUsers(filters = {}) {
+  return findAllUsers(filters);
 }
 
 /**
@@ -25,7 +26,12 @@ function getUserById(userId) {
 
 /**
  * 创建用户接口（POST /api/users/add）。
- * @param {object} userInfo 用户信息
+ * @param {object} userInfo 用户信息，包含 username、phone、email、gender、status
+ * @param {string} userInfo.username 用户名
+ * @param {string} userInfo.phone 手机号
+ * @param {string} userInfo.email 邮箱
+ * @param {string} userInfo.gender 性别
+ * @param {number} userInfo.status 状态
  * @returns {Promise<object>} 创建后的用户（含自增 ID）
  */
 function createUser(userInfo) {
