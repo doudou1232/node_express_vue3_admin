@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { UserRecord } from "@/api/users";
 import { storeToRefs } from "pinia";
 import { ElMessage } from "element-plus";
 import { useUsersStore } from "@/store/modules/users";
-
+import UserDetailDialog from "@/views/users/components/UserDetailDialog.vue";
 defineOptions({
   name: "UserList"
 });
-
 const usersStore = useUsersStore();
 const { users, loading } = storeToRefs(usersStore);
+// 详情弹窗是否可见
+const detailVisible = ref(false);
 const keyword = ref("");
 
 const filteredUsers = computed(() => {
@@ -27,15 +29,13 @@ const filteredUsers = computed(() => {
 });
 
 function formatGender(gender: number) {
-  if (gender === 1) return "男";
-  if (gender === 2) return "女";
-  return "未知";
+  return gender == 1 ? "男" : gender == 2 ? "女" : "未知";
 }
 
 function formatStatus(status: number) {
   return status === 1 ? "正常" : "停用";
 }
-// 加载用户
+// 加载用户（loading 由 store 管理，页面只负责错误反馈）
 async function loadUsers() {
   try {
     await usersStore.fetchUsers();
@@ -49,7 +49,12 @@ const addUser = () => {
   // 跳转到新增用户页面
   console.log("跳转到新增用户页面");
 };
-
+const detailUser = ref<UserRecord>();
+// 显示用户详情
+const showDetail = async (user: UserRecord) => {
+  detailUser.value = user;
+  detailVisible.value = true;
+};
 onMounted(loadUsers);
 </script>
 
@@ -70,18 +75,24 @@ onMounted(loadUsers);
 
     <el-card shadow="never" class="user-card">
       <div class="toolbar">
-        <el-input v-model="keyword" clearable placeholder="搜索用户名或手机号" class="search-input" />
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="搜索用户名"
+          class="search-input"
+        />
         <span class="result-count">共 {{ filteredUsers.length }} 人</span>
       </div>
 
       <el-table v-loading="loading" :data="filteredUsers" stripe>
         <el-table-column prop="id" label="ID" width="90" />
         <el-table-column prop="username" label="用户名" min-width="160" />
-        <el-table-column prop="phone" label="手机号" min-width="160">
+        <el-table-column prop="phone" label="手机号">
           <template #default="{ row }">
             {{ row.phone || "-" }}
           </template>
         </el-table-column>
+        <el-table-column prop="email" label="邮箱" />
         <el-table-column label="性别" width="100">
           <template #default="{ row }">
             {{ formatGender(row.gender) }}
@@ -94,10 +105,37 @@ onMounted(loadUsers);
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="create_time" label="创建时间" min-width="190" />
+        <el-table-column prop="create_time" label="创建时间">
+          <template #default="{ row }">
+            {{ $dayjs(row.create_time).format("YYYY-MM-DD HH:mm:ss") }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="update_time" label="更新时间">
+          <template #default="{ row }">
+            {{ $dayjs(row.update_time).format("YYYY-MM-DD HH:mm:ss") }}
+          </template>
+        </el-table-column>
+        <el-table-column fixed="right" label="操作" width="180" align="center">
+          <template #default="{ row }">
+            <el-button type="primary" size="small" link>编辑</el-button>
+            <el-button type="danger" size="small" link>删除</el-button>
+            <el-button
+              type="success"
+              size="small"
+              link
+              @click="showDetail(row)"
+            >
+              详情
+            </el-button>
+          </template>
+        </el-table-column>
       </el-table>
     </el-card>
     <!-- 新增和编辑弹窗 -->
+    <user-detail-dialog
+      v-model:visible="detailVisible"
+      v-model:detail-user="detailUser"
+    />
   </div>
 </template>
 

@@ -121,6 +121,8 @@ declare module "vue" {
 
   interface ComponentCustomProperties {
     $storage: ResponsiveStorage;
+    /** 全局 dayjs（main.ts 中挂载），模板里可直接 $dayjs(...) 格式化时间 */
+    $dayjs: typeof import("dayjs").default;
     $message: (typeof import("element-plus"))["ElMessage"];
     $notify: (typeof import("element-plus"))["ElNotification"];
     $msgbox: (typeof import("element-plus"))["ElMessageBox"];
