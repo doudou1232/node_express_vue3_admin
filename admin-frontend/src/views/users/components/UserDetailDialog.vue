@@ -11,7 +11,7 @@
           userInfo.username
         }}</el-descriptions-item>
         <el-descriptions-item label="手机号：">{{
-          userInfo.phone
+          userInfo.phone ?? "-"
         }}</el-descriptions-item>
         <el-descriptions-item label="邮箱：">{{
           userInfo.email
@@ -25,20 +25,21 @@
 </template>
 
 <script lang="ts" setup>
-import { defineModel, defineOptions, onMounted, ref, watch } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { UserRecord, getUserDetailById } from "@/api/users";
 
 defineOptions({
   name: "UserDetailDialog"
 });
-// 详情弹窗用户数据
-const detailUser = defineModel<UserRecord>("detailUser", {
+// 详情弹窗用户数据：新增场景可能为空对象，用 Partial 描述
+const detailUser = defineModel<Partial<UserRecord>>("detailUser", {
   default: () => ({})
 });
 
 // 弹窗开关：父组件通过 v-model:visible 双向控制，关闭时自动同步回父组件
 const visible = defineModel<boolean>("visible", { default: false });
-const userInfo = ref<UserRecord>({
+// 详情数据按需展示，字段可能缺失（如后端 NULL），用 Partial 避免空对象赋值报错
+const userInfo = ref<Partial<UserRecord>>({
   id: "",
   userid: "",
   username: "",
@@ -59,16 +60,19 @@ onMounted(() => {
 });
 // 监听 detailUser 变化，更新弹窗数据
 watch(detailUser, newVal => {
-  getDetailUserById(newVal.userid);
+  // 新增场景没有 userid，不发起详情请求
+  if (newVal.userid) {
+    getDetailUserById(newVal.userid);
+  }
 });
 const getDetailUserById = async (id: string | number) => {
   const res = await getUserDetailById(id);
-  // 后端统一约定 code 200 表示成功
-  if (res.code == 200) {
-    userInfo.value = res.data;
+  // 项目约定：成功响应统一返回 code 200（严格相等，data 由下方 || 兜底）
+  if (res.code === 200) {
+    userInfo.value = res.data || {};
   }
 };
-const formatGender = (gender: number) => {
+const formatGender = (gender: number|string) => {
   return gender == 1 ? "男" : gender == 2 ? "女" : "未知";
 };
 </script>

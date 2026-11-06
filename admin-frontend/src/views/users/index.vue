@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { UserRecord } from "@/api/users";
+import { UserRecord, deleteUserByUserId } from "@/api/users";
 import { storeToRefs } from "pinia";
-import { ElMessage } from "element-plus";
+import { ElMessage,ElMessageBox  } from "element-plus";
 import { useUsersStore } from "@/store/modules/users";
 import UserDetailDialog from "@/views/users/components/UserDetailDialog.vue";
+import AddOrEditUserDialog from "@/views/users/components/addOrEditUserDialog.vue";
 defineOptions({
   name: "UserList"
 });
@@ -12,6 +13,8 @@ const usersStore = useUsersStore();
 const { users, loading } = storeToRefs(usersStore);
 // 详情弹窗是否可见
 const detailVisible = ref(false);
+// 新增和编辑弹窗是否可见
+const addOrEditVisible = ref(false);
 const keyword = ref("");
 
 const filteredUsers = computed(() => {
@@ -28,7 +31,7 @@ const filteredUsers = computed(() => {
   });
 });
 
-function formatGender(gender: number) {
+function formatGender(gender: number | string) {
   return gender == 1 ? "男" : gender == 2 ? "女" : "未知";
 }
 
@@ -48,12 +51,35 @@ async function loadUsers() {
 const addUser = () => {
   // 跳转到新增用户页面
   console.log("跳转到新增用户页面");
+  addOrEditVisible.value = true;
 };
-const detailUser = ref<UserRecord>();
+// 新增时为空对象、编辑时为完整记录，故用 Partial 描述两种形态
+const detailUser = ref<Partial<UserRecord>>({});
 // 显示用户详情
 const showDetail = async (user: UserRecord) => {
-  detailUser.value = user;
+  detailUser.value = user || {};
   detailVisible.value = true;
+};
+// 删除用户
+const deleteUser = async (user: UserRecord) => {
+  ElMessageBox.confirm("确认删除该用户吗？", "删除确认", {
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
+    type: "warning"
+  }).then(async () => {
+    try {
+      const res = await deleteUserByUserId({ userid: user.userid });
+      if (res.code == 200) {
+        ElMessage.success("删除成功");
+        loadUsers();
+      } else {
+        ElMessage.error(`删除失败：${res.message || "删除失败" }`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "请求失败";
+      ElMessage.error(`删除失败：${message}`);
+    }
+  });
 };
 onMounted(loadUsers);
 </script>
@@ -75,12 +101,7 @@ onMounted(loadUsers);
 
     <el-card shadow="never" class="user-card">
       <div class="toolbar">
-        <el-input
-          v-model="keyword"
-          clearable
-          placeholder="搜索用户名"
-          class="search-input"
-        />
+        <el-input v-model="keyword" clearable placeholder="搜索用户名" class="search-input" />
         <span class="result-count">共 {{ filteredUsers.length }} 人</span>
       </div>
 
@@ -118,24 +139,19 @@ onMounted(loadUsers);
         <el-table-column fixed="right" label="操作" width="180" align="center">
           <template #default="{ row }">
             <el-button type="primary" size="small" link>编辑</el-button>
-            <el-button type="danger" size="small" link>删除</el-button>
-            <el-button
-              type="success"
-              size="small"
-              link
-              @click="showDetail(row)"
-            >
+            <el-button type="danger" size="small" link @click="deleteUser(row)">删除</el-button>
+            <el-button type="success" size="small" link @click="showDetail(row)">
               详情
             </el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
-    <!-- 新增和编辑弹窗 -->
-    <user-detail-dialog
-      v-model:visible="detailVisible"
-      v-model:detail-user="detailUser"
-    />
+    <!-- 用户详情弹窗 -->
+    <user-detail-dialog v-model:visible="detailVisible" v-model:detail-user="detailUser" />
+    <!-- 新增和编辑用户弹窗 -->
+    <add-or-edit-user-dialog v-model:visible="addOrEditVisible" v-model:detail-user="detailUser"
+      @refreshData="loadUsers" />
   </div>
 </template>
 

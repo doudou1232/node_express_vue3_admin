@@ -11,7 +11,7 @@ const router = express.Router();
 
 router.post('/add', addUser);
 router.put('/update/:userid', updateUser);
-router.delete('/delete/:userid', deleteUser);
+router.post('/delete', deleteUser);
 router.get('/:userid', getUserById);
 router.post('/', getUsers);
 

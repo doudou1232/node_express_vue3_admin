@@ -49,12 +49,12 @@ function updateUser(userId, userInfo) {
 }
 
 /**
- * 删除用户接口（DELETE /api/users/delete/:id）。
- * @param {number} userId 用户 ID
+ * 删除用户接口（POST /api/users/delete）。
+ * @param {number} userid 用户 ID
  * @returns {Promise<object|null>} 被删除的用户 ID，用户不存在时返回 null（上层转 404）
  */
-function removeUser(userId) {
-  return removeUserById(userId);
+function removeUser(userid) {
+  return removeUserById(userid);
 }
 
 module.exports = {

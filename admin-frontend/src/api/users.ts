@@ -1,15 +1,15 @@
 import { http } from "@/utils/http";
 
 export type UserRecord = {
-  id: number | string;
-  userid: number | string;
+  id?: number | string;
+  userid?: number | string;
   username: string;
-  phone: string | null;
-  email: string | null;
-  gender: number;
-  status: number;
-  create_time: string;
-  update_time: string;
+  phone: string;
+  email: string;
+  gender: number | string;
+  status: number | string;
+  create_time?: string;
+  update_time?: string;
   // 允许后端返回的额外字段
   [key: string]: unknown;
 };
@@ -54,4 +54,34 @@ export type UserDetailResponse = {
 /** 按 ID 查询用户详情（后端为 GET /api/users/:id，按数字自增 id 查询） */
 export function getUserDetailById(id: number | string) {
   return http.get<UserDetailResponse, undefined>(`/api/users/${id}`);
+}
+/** 新增用户响应（后端 HTTP 统一 200，业务成败由 code 区分） */
+export type AddUserResponse = {
+  code: number;
+  message: string;
+  data: UserRecord | null;
+};
+
+/**
+ * 新增用户
+ * @param user 表单数据（新增场景字段可不完整，用 Partial）
+ * @returns 新增结果
+ */
+export function addUser(user: Partial<UserRecord>) {
+  return http.post<AddUserResponse, Partial<UserRecord>>("/api/users/add", {
+    data: user
+  });
+}
+
+/** 删除用户响应（成功 data 为被删除的用户标识，失败为 null） */
+export interface DeleteUserResponse {
+  code: number;
+  message: string;
+  data: { userid: number | string } | null;
+}
+export function deleteUserByUserId(user: { userid: number | string }) {
+  return http.post<DeleteUserResponse, { userid: number | string }>(
+    "/api/users/delete",
+    { data: user }
+  );
 }

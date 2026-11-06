@@ -74,7 +74,7 @@ async function addUser(userInfo) {
     userInfo.status
   ];
   const [result] = await database.execute(sql, values);
-
+  console.log(result);
   return {
     id: result.insertId,
     userid: userId,
@@ -82,7 +82,9 @@ async function addUser(userInfo) {
     phone: userInfo.phone,
     email: userInfo.email,
     gender: userInfo.gender,
-    status: userInfo.status
+    status: userInfo.status,
+    create_time: result.insertTime,
+    update_time: result.updateTime
   };
 }
 
@@ -135,20 +137,20 @@ async function updateUserById(userId, userInfo) {
 
 /**
  * 根据 ID 删除用户。
- * @param {number} userId 用户 ID
+ * @param {number} userid 用户 ID
  * @returns {Promise<object|null>} 被删除的用户 ID
  */
-async function removeUserById(userId) {
+async function removeUserById(userid) {
   const [result] = await database.execute(
-    'DELETE FROM `sys_user` WHERE id = ?',
-    [userId]
+    'DELETE FROM `sys_user` WHERE userid = ?',
+    [userid]
   );
 
   if (result.affectedRows === 0) {
     return null;
   }
 
-  return { id: userId };
+  return { userid };
 }
 
 module.exports = {

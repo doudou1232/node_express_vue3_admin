@@ -73,9 +73,11 @@ export default defineConfig([
     }
   },
   ...tseslint.config({
-    extends: [...tseslint.configs.recommended],
+    extends: [...tseslint.configs.recommended, "plugin:vue/vue3-recommended"],
     files: ["**/*.?([cm])ts", "**/*.?([cm])tsx"],
     rules: {
+      "vue/no-unused-vars": "off",
+      "vue/no-v-model-argument": "off",
       "@typescript-eslint/no-redeclare": "error",
       "@typescript-eslint/ban-ts-comment": "off",
       "@typescript-eslint/no-explicit-any": "off",

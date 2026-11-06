@@ -7,6 +7,12 @@
 } = require('@/services/users.service');
 
 /**
+ * 响应约定：HTTP 状态码统一返回 200，业务成败由 body.code 表达
+ * （200 成功 / 400 参数错误 / 404 不存在 / 409 唯一键冲突 / 500 服务器错误），
+ * 前端统一走成功回调并按 code 分支处理提示信息。
+ */
+
+/**
  * 创建用户。
  * @param {import('express').Request} request 请求对象
  * @param {import('express').Response} response 响应对象
@@ -22,7 +28,7 @@ async function addUser(request, response) {
   } = request.body;
 
   if (!username || !String(username).trim()) {
-    return response.status(400).json({
+    return response.status(200).json({
       code: 400,
       message: 'username 不能为空',
       data: null
@@ -44,16 +50,17 @@ async function addUser(request, response) {
       data: user
     });
   } catch (error) {
+    console.log(error);
     if (error.code === 'ER_DUP_ENTRY') {
-      return response.status(409).json({
+      return response.status(200).json({
         code: 409,
-        message: '用户名已存在',
+        message: '用户已存在，姓名、手机号、邮箱不能重复',
         data: null
       });
     }
 
     console.error('创建用户失败：', error.message);
-    return response.status(500).json({
+    return response.status(200).json({
       code: 500,
       message: '创建用户失败',
       data: null
@@ -67,15 +74,14 @@ async function addUser(request, response) {
  * @param {import('express').Response} response 响应对象
  */
 async function getUserById(request, response) {
-  // 路径参数是 string，必须转换为数字后再校验
+  // 详情按 userid（UUID 字符串）查询，路由参数名为 :userid
   const userId = request.params.userid;
   let user;
-
   try {
     user = await fetchUserById(userId);
   } catch (error) {
     console.error('查询用户失败：', error.message);
-    return response.status(500).json({
+    return response.status(200).json({
       code: 500,
       message: '查询用户失败',
       data: null
@@ -84,7 +90,7 @@ async function getUserById(request, response) {
 
   // repository 未找到时返回 null，这里转为 404
   if (!user) {
-    return response.status(404).json({
+    return response.status(200).json({
       code: 404,
       message: '用户不存在',
       data: null
@@ -114,7 +120,7 @@ async function updateUser(request, response) {
   } = request.body;
 
   if (!Number.isInteger(userId)) {
-    return response.status(400).json({
+    return response.status(200).json({
       code: 400,
       message: '用户 ID 必须是数字',
       data: null
@@ -122,7 +128,7 @@ async function updateUser(request, response) {
   }
 
   if (!username || !String(username).trim()) {
-    return response.status(400).json({
+    return response.status(200).json({
       code: 400,
       message: 'username 不能为空',
       data: null
@@ -141,15 +147,15 @@ async function updateUser(request, response) {
   } catch (error) {
     // 用户名唯一键冲突返回 409
     if (error.code === 'ER_DUP_ENTRY') {
-      return response.status(409).json({
+      return response.status(200).json({
         code: 409,
-        message: '用户名已存在',
+        message: '用户已存在，姓名、手机号、邮箱不能重复',
         data: null
       });
     }
 
     console.error('更新用户失败：', error.message);
-    return response.status(500).json({
+    return response.status(200).json({
       code: 500,
       message: '更新用户失败',
       data: null
@@ -158,7 +164,7 @@ async function updateUser(request, response) {
 
   // service 返回 null 表示没有匹配的行，转为 404
   if (!user) {
-    return response.status(404).json({
+    return response.status(200).json({
       code: 404,
       message: '用户不存在',
       data: null
@@ -166,7 +172,7 @@ async function updateUser(request, response) {
   }
 
   return response.json({
-    code: 0,
+    code: 200,
     message: '用户更新成功',
     data: user
   });
@@ -178,23 +184,15 @@ async function updateUser(request, response) {
  * @param {import('express').Response} response 响应对象
  */
 async function deleteUser(request, response) {
-  const userId = Number(request.params.id);
-
-  if (!Number.isInteger(userId)) {
-    return response.status(400).json({
-      code: 400,
-      message: '用户 ID 必须是数字',
-      data: null
-    });
-  }
-
+  console.log(request.body);
+  const userid = request.body.userid;
   let user;
 
   try {
-    user = await removeUser(userId);
+    user = await removeUser(userid);
   } catch (error) {
     console.error('删除用户失败：', error.message);
-    return response.status(500).json({
+    return response.status(200).json({
       code: 500,
       message: '删除用户失败',
       data: null
@@ -202,7 +200,7 @@ async function deleteUser(request, response) {
   }
 
   if (!user) {
-    return response.status(404).json({
+    return response.status(200).json({
       code: 404,
       message: '用户不存在',
       data: null
@@ -210,7 +208,7 @@ async function deleteUser(request, response) {
   }
 
   return response.json({
-    code: 0,
+    code: 200,
     message: '用户删除成功',
     data: user
   });
@@ -239,14 +237,14 @@ async function getUsers(request, response) {
     const users = await fetchUsers(filters);
 
     return response.json({
-      code: 0,
+      code: 200,
       message: '查询成功',
       data: users
     });
   } catch (error) {
     console.error('查询用户失败：', error.message);
 
-    return response.status(500).json({
+    return response.status(200).json({
       code: 500,
       message: '查询用户失败',
       data: null
