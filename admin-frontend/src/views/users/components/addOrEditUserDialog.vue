@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, defineEmits, watch } from 'vue'
 import { addUser, updateUserByUserId, UserRecord } from '@/api/users'
-import type { FormInstance, FormRules } from 'element-plus'
+import { uploadFile } from '@/api/attachment'
+import type { FormInstance, FormRules, UploadRequestOptions } from 'element-plus'
 import { ElMessage } from 'element-plus'
 
 defineOptions({
@@ -35,15 +36,61 @@ const rules: FormRules<Partial<UserRecord>> = {
   gender: [{ required: true, message: '请选择性别', trigger: ['blur', 'change'] }],
   status: [{ required: true, message: '请选择启用状态', trigger: ['blur', 'change'] }]
 }
-watch(() => visible.value, (newVal) => {
-  if (newVal) {
-    // 弹窗打开时，清空表单数据
-    userForm.value = {}
-    userForm.value = { ...detailUser.value }
-    console.log(userForm.value)
-    ruleFormRef.value?.clearValidate()
+// 头像上传中状态，避免用户重复点击选择
+const uploading = ref<boolean>(false)
+// 弹窗每次打开时重置表单：新增为空表单、编辑回填选中记录，并清掉上次的校验红字
+watch(visible, (newVal) => {
+  if (!newVal) {
+    return
   }
+  userForm.value = { ...detailUser.value }
+  uploading.value = false
+  ruleFormRef.value?.clearValidate()
 })
+
+/**
+ * 选文件后先做本地校验，减少无效请求；后端会按白名单再校验一次
+ * @param file 浏览器选中的文件
+ */
+const beforeAvatarUpload = (file: File) => {
+  const allowTypes = ['image/jpeg', 'image/png', 'image/webp']
+  if (!allowTypes.includes(file.type)) {
+    ElMessage.error('头像仅支持 jpg/png/webp 格式')
+    return false
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    ElMessage.error('头像大小不能超过 2MB')
+    return false
+  }
+  return true
+}
+
+/**
+ * 自定义上传：走统一 http 封装拿相对路径回填表单。
+ * 这里只上传文件，写入用户表要等点击"确认提交"，避免取消时留下脏数据。
+ * @param options el-upload 上传参数，含文件对象
+ */
+const handleAvatarUpload = async (options: UploadRequestOptions) => {
+  console.log(options, 111)
+  uploading.value = true
+  try {
+    const res = await uploadFile(options.file, 'user_avatar')
+    // 业务失败也抛错，交由 el-upload 统一按失败处理
+    if (res.code !== 200 || !res.data) {
+      throw new Error(res.message || '头像上传失败')
+    }
+    userForm.value.avatar = res.data.filePath
+    ElMessage.success('头像上传成功')
+    return res.data
+  } catch (error) {
+    ElMessage.error((error as Error).message || '头像上传失败')
+    // 抛出后由 el-upload 内部 onError 兜底，无需手动调用
+    throw error
+  } finally {
+    uploading.value = false
+  }
+}
+
 const submitForm = async () => {
   // Element Plus 的 validate 校验失败时是 reject，需接住避免未捕获异常（表单已显示红字）
   try {
@@ -88,6 +135,21 @@ const submitForm = async () => {
   <div>
     <el-dialog v-model="visible" title="新增/编辑用户" width="50%">
       <el-form :model="userForm" label-width="auto" :rules="rules" ref="ruleFormRef">
+        <el-form-item label="头像">
+          <!-- 自定义 http-request 走项目统一封装，先上传文件再回填相对路径 -->
+          <el-upload
+            class="avatar-uploader"
+            :show-file-list="false"
+            :before-upload="beforeAvatarUpload"
+            :http-request="handleAvatarUpload"
+            :disabled="uploading"
+            accept="image/jpeg,image/png,image/webp"
+          >
+            <!-- 无头像时由 el-avatar 渲染内置人像图标，避免首字兜底与左侧「头像」label 视觉粘连 -->
+            <el-avatar :size="72" :src="userForm.avatar || undefined" />
+            <div class="avatar-tip">{{ uploading ? "上传中..." : "点击更换头像" }}</div>
+          </el-upload>
+        </el-form-item>
         <el-form-item label="用户名" prop="username">
           <el-input v-model="userForm.username" />
         </el-form-item>
@@ -122,4 +184,16 @@ const submitForm = async () => {
   </div>
 </template>
 
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+.avatar-uploader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.avatar-tip {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+</style>

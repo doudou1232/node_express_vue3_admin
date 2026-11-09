@@ -28,6 +28,11 @@ export default ({ mode }: ConfigEnv): UserConfigExport => {
         "/api": {
           target: "http://localhost:3000",
           changeOrigin: true
+        },
+        // 上传文件的静态访问路径，同样代理到后端，头像等图片才能正常显示
+        "/uploads": {
+          target: "http://localhost:3000",
+          changeOrigin: true
         }
       },
       // 预热文件以提前转换和缓存结果，降低启动期间的初始页面加载时长并防止转换瀑布

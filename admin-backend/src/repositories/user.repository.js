@@ -37,7 +37,7 @@ async function findAllUsers(filters = {}) {
   }
 
   let sql = `
-    SELECT id, userid, username, phone, email, gender, status, create_time, update_time
+    SELECT id, userid, username, phone, email, avatar, gender, status, create_time, update_time
     FROM \`sys_user\`
   `;
 
@@ -62,14 +62,15 @@ async function addUser(userInfo) {
   // 服务端生成 userid 唯一标识，避免信任客户端数据
   const userId = uuidv4();
   const sql = `
-    INSERT INTO \`sys_user\` (userid, username, phone, email, gender, status)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO \`sys_user\` (userid, username, phone, email, avatar, gender, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `;
   const values = [
     userId,
     userInfo.username,
     userInfo.phone,
     userInfo.email,
+    userInfo.avatar,
     userInfo.gender,
     userInfo.status
   ];
@@ -81,6 +82,7 @@ async function addUser(userInfo) {
     username: userInfo.username,
     phone: userInfo.phone,
     email: userInfo.email,
+    avatar: userInfo.avatar,
     gender: userInfo.gender,
     status: userInfo.status,
     create_time: result.insertTime,
@@ -97,7 +99,7 @@ async function addUser(userInfo) {
 async function findUserById(userId) {
   console.log(userId);
   const sql = `
-    SELECT id, userid, username, phone, email, gender, status, create_time, update_time
+    SELECT id, userid, username, phone, email, avatar, gender, status, create_time, update_time
     FROM \`sys_user\`
     WHERE userid = ?
   `;
@@ -116,13 +118,14 @@ async function findUserById(userId) {
 async function updateUserById(userId, userInfo) {
   const sql = `
     UPDATE \`sys_user\`
-    SET username = ?, phone = ?, email = ?, gender = ?, status = ?, update_time = NOW()
+    SET username = ?, phone = ?, email = ?, avatar = ?, gender = ?, status = ?, update_time = NOW()
     WHERE userid = ?
   `;
   const values = [
     userInfo.username,
     userInfo.phone,
     userInfo.email,
+    userInfo.avatar,
     userInfo.gender,
     userInfo.status,
     userId

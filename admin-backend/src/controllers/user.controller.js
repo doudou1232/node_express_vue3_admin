@@ -23,6 +23,7 @@ async function addUser(request, response) {
     username,
     phone = null,
     email = null,
+    avatar = null,
     gender,
     status = 1
   } = request.body;
@@ -40,6 +41,8 @@ async function addUser(request, response) {
       username: String(username).trim(),
       phone: phone ? String(phone).trim() : null,
       email: email ? String(email).trim() : null,
+      // 头像只接受上传接口返回的相对路径，未上传时为 null
+      avatar: avatar ? String(avatar).trim() : null,
       gender: String(gender),
       status: status
     });
@@ -116,6 +119,7 @@ async function updateUser(request, response) {
     username,
     phone = null,
     email = null,
+    avatar = null,
     gender = '0',
     status = null
   } = request.body;
@@ -135,6 +139,8 @@ async function updateUser(request, response) {
       username: String(username).trim(),
       phone: phone ? String(phone).trim() : null,
       email: email ? String(email).trim() : null,
+      // 全量更新语义：不传 avatar 表示清空头像
+      avatar: avatar ? String(avatar).trim() : null,
       gender: String(gender),
       status: status !== null ? Number(status) : null
     });

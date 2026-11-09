@@ -6,6 +6,8 @@ export type UserRecord = {
   username: string;
   phone: string;
   email: string;
+  /** 头像相对路径，由上传接口返回，如 /uploads/user_avatar/2026/11/xxx.png */
+  avatar?: string | null;
   gender: number | string;
   status: number | string;
   create_time?: string;
@@ -86,9 +88,19 @@ export function deleteUserByUserId(user: { userid: number | string }) {
   );
 }
 
+/** 更新用户响应（成功 data 为被更新的用户标识，失败为 null） */
+export interface UpdateUserResponse {
+  code: number;
+  message: string;
+  data: { userid: number | string } | null;
+}
+
+/**
+ * 更新用户（全量更新语义：未传可选字段会被清空，编辑时需带完整字段）
+ * @param user 完整用户记录，必须包含 userid
+ */
 export function updateUserByUserId(user: UserRecord) {
-  return http.post<DeleteUserResponse, UserRecord>(
-    "/api/users/update",
-    { data: user }
-  );
+  return http.post<UpdateUserResponse, UserRecord>("/api/users/update", {
+    data: user
+  });
 }

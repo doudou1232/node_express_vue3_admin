@@ -7,6 +7,11 @@
       @close="closeDialog"
     >
       <el-descriptions :column="2" border>
+        <el-descriptions-item label="头像：" :span="2">
+          <el-avatar :size="64" :src="userInfo.avatar || undefined">
+            {{ userInfo.username?.slice(0, 1) }}
+          </el-avatar>
+        </el-descriptions-item>
         <el-descriptions-item label="用户名：">{{
           userInfo.username
         }}</el-descriptions-item>
