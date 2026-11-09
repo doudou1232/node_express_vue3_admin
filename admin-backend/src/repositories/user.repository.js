@@ -116,12 +116,13 @@ async function findUserById(userId) {
 async function updateUserById(userId, userInfo) {
   const sql = `
     UPDATE \`sys_user\`
-    SET username = ?, phone = ?, gender = ?, status = ?, update_time = NOW()
-    WHERE id = ?
+    SET username = ?, phone = ?, email = ?, gender = ?, status = ?, update_time = NOW()
+    WHERE userid = ?
   `;
   const values = [
     userInfo.username,
     userInfo.phone,
+    userInfo.email,
     userInfo.gender,
     userInfo.status,
     userId
@@ -132,7 +133,7 @@ async function updateUserById(userId, userInfo) {
     return null;
   }
 
-  return { id: userId };
+  return { userid: userId };
 }
 
 /**

@@ -85,3 +85,10 @@ export function deleteUserByUserId(user: { userid: number | string }) {
     { data: user }
   );
 }
+
+export function updateUserByUserId(user: UserRecord) {
+  return http.post<DeleteUserResponse, UserRecord>(
+    "/api/users/update",
+    { data: user }
+  );
+}

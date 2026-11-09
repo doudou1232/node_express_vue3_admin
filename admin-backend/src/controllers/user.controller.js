@@ -111,21 +111,14 @@ async function getUserById(request, response) {
  * @param {import('express').Response} response 响应对象
  */
 async function updateUser(request, response) {
-  const userId = Number(request.params.id);
+  const userId = request.body.userid;
   const {
     username,
     phone = null,
-    gender = 0,
-    status = 1
+    email = null,
+    gender = '0',
+    status = null
   } = request.body;
-
-  if (!Number.isInteger(userId)) {
-    return response.status(200).json({
-      code: 400,
-      message: '用户 ID 必须是数字',
-      data: null
-    });
-  }
 
   if (!username || !String(username).trim()) {
     return response.status(200).json({
@@ -141,8 +134,9 @@ async function updateUser(request, response) {
     user = await modifyUser(userId, {
       username: String(username).trim(),
       phone: phone ? String(phone).trim() : null,
+      email: email ? String(email).trim() : null,
       gender: String(gender),
-      status: String(status)
+      status: status !== null ? Number(status) : null
     });
   } catch (error) {
     // 用户名唯一键冲突返回 409

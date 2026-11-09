@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, defineEmits } from 'vue'
-import { addUser, UserRecord } from '@/api/users'
+import { ref, defineEmits, watch } from 'vue'
+import { addUser, updateUserByUserId, UserRecord } from '@/api/users'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
+
 defineOptions({
   name: "AddOrEditUserDialog"
 });
@@ -34,7 +35,15 @@ const rules: FormRules<Partial<UserRecord>> = {
   gender: [{ required: true, message: '请选择性别', trigger: ['blur', 'change'] }],
   status: [{ required: true, message: '请选择启用状态', trigger: ['blur', 'change'] }]
 }
-
+watch(() => visible.value, (newVal) => {
+  if (newVal) {
+    // 弹窗打开时，清空表单数据
+    userForm.value = {}
+    userForm.value = { ...detailUser.value }
+    console.log(userForm.value)
+    ruleFormRef.value?.clearValidate()
+  }
+})
 const submitForm = async () => {
   // Element Plus 的 validate 校验失败时是 reject，需接住避免未捕获异常（表单已显示红字）
   try {
@@ -45,28 +54,28 @@ const submitForm = async () => {
   loading.value = true
   try {
     // 校验通过，提交表单数据
-    const res = await addUser(userForm.value)
+    const res = detailUser.value.userid ? await updateUserByUserId(userForm.value as UserRecord) : await addUser(userForm.value)
     // 后端 HTTP 层统一 200，业务成败由 code 区分
     if (res.code === 200) {
       visible.value = false
       // 提交成功后，清空表单数据
       userForm.value = {}
       ElMessage({
-        message: '添加用户成功',
+        message: detailUser.value.userid ? '更新用户成功' : '添加用户成功',
         type: 'success',
       })
       // 提交成功后，刷新父组件数据
       emit('refreshData')
     } else {
       ElMessage({
-        message: res.message || '添加用户失败',
+        message: res.message || (detailUser.value.userid ? '更新用户失败' : '添加用户失败'),
         type: 'error',
       })
     }
   } catch (error) {
     // 走到这里的只剩网络层错误（超时、断网），后端业务错误都在上面 else 分支
     ElMessage({
-      message: (error as Error).message || '添加用户失败',
+      message: (error as Error).message || (detailUser.value.userid ? '更新用户失败' : '添加用户失败'),
       type: 'error',
     })
   } finally {
@@ -96,8 +105,8 @@ const submitForm = async () => {
         </el-form-item>
         <el-form-item label="启用状态" prop="status">
           <el-radio-group v-model="userForm.status">
-            <el-radio label="1">启用</el-radio>
-            <el-radio label="0">禁用</el-radio>
+            <el-radio :label="1">启用</el-radio>
+            <el-radio :label="0">禁用</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>

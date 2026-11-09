@@ -81,6 +81,11 @@ const deleteUser = async (user: UserRecord) => {
     }
   });
 };
+// 编辑用户
+const editUser = (user: UserRecord) => {
+  detailUser.value = user || {};
+  addOrEditVisible.value = true;
+};
 onMounted(loadUsers);
 </script>
 
@@ -138,7 +143,7 @@ onMounted(loadUsers);
         </el-table-column>
         <el-table-column fixed="right" label="操作" width="180" align="center">
           <template #default="{ row }">
-            <el-button type="primary" size="small" link>编辑</el-button>
+            <el-button type="primary" size="small" link @click="editUser(row)">编辑</el-button>
             <el-button type="danger" size="small" link @click="deleteUser(row)">删除</el-button>
             <el-button type="success" size="small" link @click="showDetail(row)">
               详情
