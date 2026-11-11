@@ -41,6 +41,7 @@ const uploading = ref<boolean>(false)
 // 弹窗每次打开时重置表单：新增为空表单、编辑回填选中记录，并清掉上次的校验红字
 watch(visible, (newVal) => {
   if (!newVal) {
+    userForm.value = {}
     return
   }
   userForm.value = { ...detailUser.value }

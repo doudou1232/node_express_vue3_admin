@@ -47,14 +47,14 @@ async function loadUsers() {
     ElMessage.error(`用户列表加载失败：${message}`);
   }
 }
-// 新增用户
-const addUser = () => {
-  // 跳转到新增用户页面
-  console.log("跳转到新增用户页面");
-  addOrEditVisible.value = true;
-};
 // 新增时为空对象、编辑时为完整记录，故用 Partial 描述两种形态
 const detailUser = ref<Partial<UserRecord>>({});
+// 新增用户
+const addUser = () => {
+  // 详情/编辑/新增共用同一个 detailUser，不重置会把上次的完整记录带进新增表单
+  detailUser.value = {};
+  addOrEditVisible.value = true;
+};
 // 显示用户详情
 const showDetail = async (user: UserRecord) => {
   detailUser.value = user || {};

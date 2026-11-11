@@ -10,7 +10,7 @@ const { UPLOAD_ROOT, UPLOAD_URL_PREFIX } = require('@/config/storage');
  */
 function createApp() {
   const app = express();
-
+  // 全局中间件，解析 JSON 请求体，挂载到 req.body 上
   app.use(express.json());
 
   app.get('/', function handleHomePage(request, response) {
@@ -18,6 +18,7 @@ function createApp() {
   });
 
   // 上传文件静态托管：数据库只存 /uploads/... 相对路径，这里映射到磁盘目录
+  // 请求路径匹配UPLOAD_URL_PREFIX，如 /uploads/avatar/123.jpg，映射到 /uploads/avatar/123.jpg
   app.use(
     UPLOAD_URL_PREFIX,
     express.static(UPLOAD_ROOT, {
