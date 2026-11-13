@@ -33,8 +33,7 @@ export type UploadBizType = "user_avatar" | "user_import";
 export function uploadFile(file: File, bizType: UploadBizType) {
   const formData = new FormData();
   formData.append("file", file);
-  // 未接入登录态，先固定上传人；接入鉴权后改为取当前登录用户
-  formData.append("uploader", "庄瑜");
+  // 上传人由后端从 token 中解析，前端不再传，防止伪造
 
   return http.post<UploadFileResponse, FormData>(`/api/files/upload/${bizType}`, {
     data: formData,

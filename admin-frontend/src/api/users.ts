@@ -3,11 +3,16 @@ import { http } from "@/utils/http";
 export type UserRecord = {
   id?: number | string;
   userid?: number | string;
+  /** 登录用户名，纯英文（可含数字） */
   username: string;
+  /** 真实姓名，用于界面展示 */
+  realName: string;
   phone: string;
   email: string;
   /** 头像相对路径，由上传接口返回，如 /uploads/user_avatar/2026/11/xxx.png */
   avatar?: string | null;
+  /** 明文密码，仅提交时使用；后端只存哈希，列表查询不会返回该字段 */
+  password?: string | null;
   gender: number | string;
   status: number | string;
   create_time?: string;
@@ -29,8 +34,10 @@ export type UserListResponse = {
 
 /** 用户列表查询参数（全部可选；后端 /api/users 暂未消费，先预留传参结构） */
 export type UserListParams = {
-  /** 用户名 */
+  /** 登录用户名 */
   username?: string;
+  /** 真实姓名 */
+  realName?: string;
   /** 手机号 */
   phone?: string;
   /** 邮箱 */

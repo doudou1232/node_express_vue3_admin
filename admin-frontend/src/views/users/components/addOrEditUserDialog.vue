@@ -24,10 +24,27 @@ const userForm = ref<Partial<UserRecord>>({})
 const ruleFormRef = ref<FormInstance>()
 // 表单验证规则：静态配置用普通对象即可；纯格式校验用 pattern 声明式写法
 const rules: FormRules<Partial<UserRecord>> = {
-  username: [{ required: true, message: '请输入用户名', trigger: ['blur', 'change'] }],
+  realName: [{ required: true, message: '请输入姓名', trigger: ['blur', 'change'] }],
+  username: [
+    { required: true, message: '请输入用户名', trigger: ['blur', 'change'] },
+    // 用户名即登录账号，与后端校验保持一致：字母开头，仅允许字母和数字
+    {
+      pattern: /^[A-Za-z][A-Za-z0-9]*$/,
+      message: '用户名只能使用字母（可含数字），且需以字母开头',
+      trigger: ['blur', 'change']
+    }
+  ],
   phone: [
     { required: true, message: '请输入手机号', trigger: ['blur', 'change'] },
     { pattern: /^1[3456789]\d{9}$/, message: '请输入正确的手机号', trigger: ['blur', 'change'] }
+  ],
+  // 密码选填：留空时新增的账号暂时无法登录、编辑时保持原密码不变
+  password: [
+    {
+      min: 6,
+      message: '密码长度不能少于 6 位',
+      trigger: ['blur', 'change']
+    }
   ],
   email: [
     { required: true, message: '请输入邮箱', trigger: ['blur', 'change'] },
@@ -44,7 +61,8 @@ watch(visible, (newVal) => {
     userForm.value = {}
     return
   }
-  userForm.value = { ...detailUser.value }
+  // 编辑时回填其他字段，但密码绝不回填，避免把旧密码明文暴露在表单里
+  userForm.value = { ...detailUser.value, password: '' }
   uploading.value = false
   ruleFormRef.value?.clearValidate()
 })
@@ -151,8 +169,20 @@ const submitForm = async () => {
             <div class="avatar-tip">{{ uploading ? "上传中..." : "点击更换头像" }}</div>
           </el-upload>
         </el-form-item>
+        <el-form-item label="姓名" prop="realName">
+          <el-input v-model="userForm.realName" />
+        </el-form-item>
         <el-form-item label="用户名" prop="username">
-          <el-input v-model="userForm.username" />
+          <el-input v-model="userForm.username" placeholder="登录账号，字母开头，仅字母和数字" />
+        </el-form-item>
+        <el-form-item label="密码" prop="password">
+          <el-input
+            v-model="userForm.password"
+            type="password"
+            show-password
+            autocomplete="new-password"
+            :placeholder="detailUser.userid ? '留空则不修改密码' : '至少 6 位，留空则该账号暂不可登录'"
+          />
         </el-form-item>
         <el-form-item label="手机号" prop="phone">
           <el-input v-model="userForm.phone" />

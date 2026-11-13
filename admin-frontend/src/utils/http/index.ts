@@ -85,9 +85,14 @@ class PureHttp {
                     useUserStoreHook()
                       .handRefreshToken({ refreshToken: data.refreshToken })
                       .then(res => {
-                        const token = res.data.accessToken;
+                        const token = res.data?.accessToken;
+                        if (!token) return;
                         config.headers["Authorization"] = formatToken(token);
                         PureHttp.requests.forEach(cb => cb(token));
+                        PureHttp.requests = [];
+                      })
+                      .catch(() => {
+                        // 刷新失败时 store 已清空登录态并跳转登录页，这里丢弃挂起的请求
                         PureHttp.requests = [];
                       })
                       .finally(() => {
@@ -118,6 +123,11 @@ class PureHttp {
     instance.interceptors.response.use(
       (response: PureHttpResponse) => {
         const $config = response.config;
+        // 后端统一 HTTP 200，业务 401 表示 token 失效，需清空登录态并回登录页
+        if (response.data?.code === 401) {
+          useUserStoreHook().logOut();
+          return response.data;
+        }
         // 优先判断post/get等方法是否传入回调，否则执行初始化设置等回调
         if (typeof $config.beforeResponseCallback === "function") {
           $config.beforeResponseCallback(response);

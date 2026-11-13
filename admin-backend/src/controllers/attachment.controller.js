@@ -1,9 +1,6 @@
 const fs = require('fs');
 const { createAttachment, getAttachmentFile } = require('@/services/attachment.service');
 
-// 默认上传人：当前未接入登录态，前端未传时兜底为庄瑜，接入鉴权后改为取登录用户
-const DEFAULT_UPLOADER = '庄瑜';
-
 /**
  * 上传单个文件（POST /api/files/upload/:bizType）。
  * 中间件已完成磁盘写入，这里只负责落库并返回可访问路径。
@@ -20,8 +17,8 @@ async function uploadFile(request, response) {
     const record = await createAttachment({
       file: request.file,
       bizType: request.params.bizType,
-      // multipart 的文本字段由 multer 解析进 body，未传或空串时用默认上传人
-      uploader: request.body?.uploader || DEFAULT_UPLOADER
+      // 上传人取当前登录用户，避免前端伪造；未登录场景由鉴权中间件提前拦截
+      uploader: request.user?.username || request.body?.uploader || null
     });
 
     return response.json({

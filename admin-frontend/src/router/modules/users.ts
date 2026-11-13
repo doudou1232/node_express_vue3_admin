@@ -16,6 +16,7 @@ export default {
       component: () => import("@/views/users/index.vue"),
       meta: {
         title: "用户列表",
+        roles: ["admin"],
         showParent: true
       }
     }

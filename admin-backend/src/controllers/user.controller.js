@@ -3,7 +3,9 @@
   updateUser: modifyUser,
   removeUser,
   getUsers: fetchUsers,
-  getUserById: fetchUserById
+  getUserById: fetchUserById,
+  isValidUsername,
+  isValidPassword
 } = require('@/services/users.service');
 
 /**
@@ -21,6 +23,8 @@ async function addUser(request, response) {
   console.log(request.body);
   const {
     username,
+    realName,
+    password = null,
     phone = null,
     email = null,
     avatar = null,
@@ -31,7 +35,33 @@ async function addUser(request, response) {
   if (!username || !String(username).trim()) {
     return response.status(200).json({
       code: 400,
-      message: 'username 不能为空',
+      message: '用户名不能为空',
+      data: null
+    });
+  }
+
+  // 用户名即登录账号，只允许字母开头 + 字母数字，中文姓名走 realName
+  if (!isValidUsername(String(username).trim())) {
+    return response.status(200).json({
+      code: 400,
+      message: '用户名只能使用字母（可含数字），且需以字母开头',
+      data: null
+    });
+  }
+
+  if (!realName || !String(realName).trim()) {
+    return response.status(200).json({
+      code: 400,
+      message: '姓名不能为空',
+      data: null
+    });
+  }
+
+  // 密码可选：填了就必须满足长度要求，不填则该账号暂时无法登录
+  if (password && !isValidPassword(password)) {
+    return response.status(200).json({
+      code: 400,
+      message: '密码长度不能少于 6 位',
       data: null
     });
   }
@@ -39,6 +69,8 @@ async function addUser(request, response) {
   try {
     const user = await createUser({
       username: String(username).trim(),
+      realName: String(realName).trim(),
+      password: password ? String(password) : null,
       phone: phone ? String(phone).trim() : null,
       email: email ? String(email).trim() : null,
       // 头像只接受上传接口返回的相对路径，未上传时为 null
@@ -57,7 +89,7 @@ async function addUser(request, response) {
     if (error.code === 'ER_DUP_ENTRY') {
       return response.status(200).json({
         code: 409,
-        message: '用户已存在，姓名、手机号、邮箱不能重复',
+        message: '用户已存在，用户名、手机号、邮箱不能重复',
         data: null
       });
     }
@@ -117,6 +149,8 @@ async function updateUser(request, response) {
   const userId = request.body.userid;
   const {
     username,
+    realName,
+    password = null,
     phone = null,
     email = null,
     avatar = null,
@@ -127,7 +161,33 @@ async function updateUser(request, response) {
   if (!username || !String(username).trim()) {
     return response.status(200).json({
       code: 400,
-      message: 'username 不能为空',
+      message: '用户名不能为空',
+      data: null
+    });
+  }
+
+  // 用户名即登录账号，只允许字母开头 + 字母数字，中文姓名走 realName
+  if (!isValidUsername(String(username).trim())) {
+    return response.status(200).json({
+      code: 400,
+      message: '用户名只能使用字母（可含数字），且需以字母开头',
+      data: null
+    });
+  }
+
+  if (!realName || !String(realName).trim()) {
+    return response.status(200).json({
+      code: 400,
+      message: '姓名不能为空',
+      data: null
+    });
+  }
+
+  // 密码留空表示不修改，填了才校验长度并覆盖原密码
+  if (password && !isValidPassword(password)) {
+    return response.status(200).json({
+      code: 400,
+      message: '密码长度不能少于 6 位',
       data: null
     });
   }
@@ -137,6 +197,8 @@ async function updateUser(request, response) {
   try {
     user = await modifyUser(userId, {
       username: String(username).trim(),
+      realName: String(realName).trim(),
+      password: password ? String(password) : null,
       phone: phone ? String(phone).trim() : null,
       email: email ? String(email).trim() : null,
       // 全量更新语义：不传 avatar 表示清空头像
@@ -149,7 +211,7 @@ async function updateUser(request, response) {
     if (error.code === 'ER_DUP_ENTRY') {
       return response.status(200).json({
         code: 409,
-        message: '用户已存在，姓名、手机号、邮箱不能重复',
+        message: '用户已存在，用户名、手机号、邮箱不能重复',
         data: null
       });
     }
@@ -215,16 +277,19 @@ async function deleteUser(request, response) {
 }
 
 /**
- * 查询用户列表，支持按用户名/手机号/邮箱模糊筛选。
+ * 查询用户列表，支持按用户名/真实姓名/手机号/邮箱模糊筛选。
  * @param {import('express').Request} request 请求对象
  * @param {import('express').Response} response 响应对象
  */
 async function getUsers(request, response) {
-  // 查询条件：用户名/手机号/邮箱，均模糊匹配，不传则查全部
-  const { username, phone, email } = request.body || {};
+  // 查询条件：用户名/真实姓名/手机号/邮箱，均模糊匹配，不传则查全部
+  const { username, realName, phone, email } = request.body || {};
   const filters = {};
   if (username && String(username).trim()) {
     filters.username = String(username).trim();
+  }
+  if (realName && String(realName).trim()) {
+    filters.realName = String(realName).trim();
   }
   if (phone && String(phone).trim()) {
     filters.phone = String(phone).trim();

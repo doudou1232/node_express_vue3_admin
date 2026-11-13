@@ -1,6 +1,10 @@
 const express = require('express');
+const authRoutes = require('@/routes/auth');
 const userRoutes = require('@/routes/users');
 const fileRoutes = require('@/routes/files');
+const caseRoutes = require('@/routes/cases');
+const enterpriseRoutes = require('@/routes/enterprise');
+const { authenticate } = require('@/middlewares/auth.middleware');
 const { UPLOAD_ROOT, UPLOAD_URL_PREFIX } = require('@/config/storage');
 
 /**
@@ -30,11 +34,16 @@ function createApp() {
     })
   );
 
-  // 用户相关接口
-  app.use('/api/users', userRoutes);
-  // 附件上传/下载接口
-  app.use('/api/files', fileRoutes);
-
+  // 登录/刷新/登出接口，自身内部处理鉴权，不能挂全局 token 校验
+  app.use('/api/auth', authRoutes);
+  // 用户相关接口（需登录）
+  app.use('/api/users', authenticate, userRoutes);
+  // 附件上传/下载接口（需登录）
+  app.use('/api/files', authenticate, fileRoutes);
+  // 办件及其阶段流程接口（需登录）
+  app.use('/api/cases', authenticate, caseRoutes);
+  // 企业相关接口（暂无需登录）
+  app.use('/api/enterprise', enterpriseRoutes);
   return app;
 }
 

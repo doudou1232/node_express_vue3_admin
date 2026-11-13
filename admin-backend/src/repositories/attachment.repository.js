@@ -1,4 +1,5 @@
-const database = require('@/config/database');
+// 配置层现在导出多个连接池，这里只取默认库的连接池，保持后续 database.execute 调用不变
+const { pool: database } = require('@/config/database');
 
 /**
  * 写入一条附件元数据。

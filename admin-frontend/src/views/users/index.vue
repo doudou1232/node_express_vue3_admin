@@ -25,8 +25,9 @@ const filteredUsers = computed(() => {
   }
 
   return users.value.filter(user => {
-    return [user.username, user.phone ?? ""].some(field =>
-      field.toLowerCase().includes(value)
+    // 同时按真实姓名与登录用户名检索，方便中文名和英文账号都能搜到
+    return [user.realName ?? "", user.username, user.phone ?? ""].some(field =>
+      String(field).toLowerCase().includes(value)
     );
   });
 });
@@ -106,13 +107,14 @@ onMounted(loadUsers);
 
     <el-card shadow="never" class="user-card">
       <div class="toolbar">
-        <el-input v-model="keyword" clearable placeholder="搜索用户名" class="search-input" />
+        <el-input v-model="keyword" clearable placeholder="搜索姓名/用户名/手机号" class="search-input" />
         <span class="result-count">共 {{ filteredUsers.length }} 人</span>
       </div>
 
       <el-table v-loading="loading" :data="filteredUsers" stripe>
         <el-table-column prop="id" label="ID" width="90" />
-        <el-table-column prop="username" label="用户名" min-width="160" />
+        <el-table-column prop="realName" label="姓名" min-width="120" />
+        <el-table-column prop="username" label="用户名" min-width="140" />
         <el-table-column prop="phone" label="手机号">
           <template #default="{ row }">
             {{ row.phone || "-" }}
