@@ -4,7 +4,8 @@ const { companyPool: database } = require('@/config/database');
  * @returns {Promise<object>} 企业排名列表
  */
 async function getEnterpriseRankListRepository() {
-  const sql = `SELECT * FROM \`enterprise_ranking\``;
+  // 排名列表按名次升序返回，保证前端拿到的顺序稳定
+  const sql = `SELECT * FROM \`enterprise_ranking\` ORDER BY \`rank_no\` ASC`;
   const [rows] = await database.query(sql);
   return rows;
 }

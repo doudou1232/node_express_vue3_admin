@@ -2,8 +2,8 @@
 import { Line, Pie } from '@antv/g2plot';
 import { onMounted, ref } from 'vue';
 import { useTransition } from '@vueuse/core'
-import { ElMessage,ElMessageBox  } from "element-plus";
-import { getEnterpriseRankList } from '@/api/enterprise';
+import { ElMessage } from "element-plus";
+import { getEnterpriseRankList, type EnterpriseRankRecord } from '@/api/enterprise';
 defineOptions({
   name: "Welcome"
 });
@@ -98,6 +98,8 @@ const statisticsList = ref<StatisticsType[]>([{
 },
 ])
 const companies = ref<CompanyType[]>([]);
+// 企业排名列表的加载状态，供表格展示加载遮罩
+const loading = ref(false);
 // 全球百强企业数据
 // 每个统计项独立的动画源值；挂载后再赋目标值，数值才会从 0 滚动到实际值
 const animatedValues = statisticsList.value.map(item => {
@@ -192,12 +194,40 @@ const renderPieChart = async () => {
   piePlot.render();
 
 }
+// 后端返回数据库原始字段（snake_case、金额为字符串），统一转换成本页使用的结构
+const mapRankRecord = (record: EnterpriseRankRecord): CompanyType => ({
+  rank: Number(record.rank_no),
+  nameCn: record.name_cn,
+  nameEn: record.name_en,
+  business: record.business,
+  country: record.country,
+  sector: record.sector,
+  marketCapUsdBn: Number(record.market_cap_usd_bn),
+  revenueFy2025UsdBn: Number(record.revenue_fy2025_usd_bn),
+  revenueIsEstimate: Boolean(Number(record.revenue_is_estimate)),
+  leader: record.leader,
+  leaderTitle: record.leader_title,
+})
+// 金额统一保留两位小数并加千分位，等宽数字排列时位数能对齐
+const formatUsdBn = (value: number) =>
+  Number.isFinite(value)
+    ? value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : '-';
 const renderTop100CompanyChart = async () => {
+  loading.value = true;
   try {
     const res = await getEnterpriseRankList();
-    console.log(res,22222)
+    if (res.code !== 200 || !Array.isArray(res.data)) {
+      throw new Error(res.message || '获取企业排名列表失败');
+    }
+    // 排名列表按名次升序展示，避免依赖数据库默认返回顺序
+    companies.value = res.data
+      .map(mapRankRecord)
+      .sort((a, b) => a.rank - b.rank);
   } catch (error) {
-    ElMessage.error((error as Error).message || '获取企业排名列表失败')
+    ElMessage.error((error as Error).message || '获取企业排名列表失败');
+  } finally {
+    loading.value = false;
   }
 }
 </script>
@@ -251,7 +281,7 @@ const renderTop100CompanyChart = async () => {
           <span>全球百强企业</span>
         </div>
       </template>
-      <div class="auto-table">
+      <div v-loading="loading" class="auto-table">
         <!-- 表头：在滚动区之外，天然固定 -->
         <div class="auto-table__head">
           <span>排名</span>
@@ -259,8 +289,8 @@ const renderTop100CompanyChart = async () => {
           <span>英文名称</span>
           <span>行业</span>
           <span>国家</span>
-          <span class="col-num">市值（亿美元）</span>
-          <span class="col-num">2025年收入（亿美元）</span>
+          <span class="col-num">市值（十亿美元）</span>
+          <span class="col-num">2025年收入（十亿美元）</span>
           <span>负责人</span>
         </div>
         <!-- 组件 inheritAttrs:false，class 不会透传，必须自己包一层承载高度 -->
@@ -276,16 +306,22 @@ const renderTop100CompanyChart = async () => {
             <template #default="{ data }">
               <div class="auto-table__row">
                 <span>{{ data.rank }}</span>
-                <span>{{ data.nameCn }}</span>
+                <span :title="data.business">{{ data.nameCn }}</span>
                 <span>{{ data.nameEn }}</span>
                 <span>{{ data.sector }}</span>
                 <span>{{ data.country }}</span>
-                <span class="col-num">{{ data.marketCapUsdBn }}</span>
-                <span class="col-num">{{ data.revenueFy2025UsdBn }}</span>
-                <span>{{ data.leader }}</span>
+                <span class="col-num">{{ formatUsdBn(data.marketCapUsdBn) }}</span>
+                <span class="col-num">
+                  {{ formatUsdBn(data.revenueFy2025UsdBn) }}
+                  <!-- 预估值加标记，避免和已披露财报混在一起 -->
+                  <sup v-if="data.revenueIsEstimate" class="col-flag" title="预估值">*</sup>
+                </span>
+                <span :title="data.leaderTitle">{{ data.leader }}</span>
               </div>
             </template>
           </seamless-scroll>
+          <!-- 加载失败或确实没有数据时给出明确提示，而不是留一块空白 -->
+          <el-empty v-else-if="!loading" description="暂无企业排名数据" :image-size="80" />
         </div>
       </div>
     </el-card>
@@ -341,6 +377,13 @@ const renderTop100CompanyChart = async () => {
 .auto-table__row .col-num {
   font-variant-numeric: tabular-nums;
   text-align: center;
+}
+
+/* 收入预估标记：弱化颜色，不抢数字本身的视觉重量 */
+.auto-table__row .col-flag {
+  color: var(--el-color-warning);
+  font-size: 12px;
+  margin-left: 2px;
 }
 
 /* 滚动容器必须有固定高度并裁掉溢出内容 */
