@@ -13,11 +13,26 @@ const FIRST_STAGE_NAME = '受理';
 /**
  * 主表查询字段。
  * 刻意不返回自增 id：id 只在库内部使用，任何接口都不应把它暴露出去。
+ * applicant_name 通过 LEFT JOIN sys_user 取申请人姓名，避免前端再查一次用户表。
  */
 const CASE_SELECT_FIELDS = `
-  caseguid, case_no, userid, business_name, dept_name, consult_phone,
-  handler_name, status, apply_time, finish_time, remark, create_time, update_time
+  c.caseguid, c.case_no, c.userid, c.business_name, c.dept_name, c.consult_phone,
+  c.handler_name, c.status, c.apply_time, c.finish_time, c.remark, c.create_time, c.update_time,
+  u.real_name AS applicant_name,
+  COALESCE(st.max_stage_no, 0) AS max_stage_no
 `;
+
+/**
+ * 主表查询的 FROM 片段，列表与详情共用，保证两处字段与关联一致。
+ * st 子查询取每个办件的最大阶段序号：> 1 说明已经流转，用于限制编辑/删除。
+ */
+const CASE_FROM = `FROM \`biz_case\` c
+  LEFT JOIN \`sys_user\` u ON u.userid = c.userid
+  LEFT JOIN (
+    SELECT case_guid, MAX(sort_no) AS max_stage_no
+    FROM \`biz_case_stage\`
+    GROUP BY case_guid
+  ) st ON st.case_guid = c.caseguid`;
 
 /**
  * 转义 LIKE 模糊查询中的通配符（% _ \），
@@ -30,41 +45,67 @@ function escapeLike(value) {
 }
 
 /**
- * 查询办件列表，支持按用户、办件编号、业务名称模糊筛选，按状态精确筛选。
- * 多个条件同时传时为 AND 关系；全部不传时查全部。
+ * 把列表筛选条件拼成 WHERE 片段，值全部走占位符。
+ * 多个条件同时传时为 AND 关系；全部不传时不加 WHERE。
  * @param {object} filters 查询条件 { userid, caseNo, businessName, status }
- * @returns {Promise<Array>} 办件列表
+ * @returns {{ where: string, values: Array }} WHERE 片段与参数
  */
-async function findAllCases(filters = {}) {
+function buildCaseFilter(filters = {}) {
   const conditions = [];
   const values = [];
 
   if (filters.userid) {
-    conditions.push('userid = ?');
+    conditions.push('c.userid = ?');
     values.push(filters.userid);
   }
   if (filters.caseNo) {
-    conditions.push('case_no LIKE ?');
+    conditions.push('c.case_no LIKE ?');
     values.push(`%${escapeLike(filters.caseNo)}%`);
   }
   if (filters.businessName) {
-    conditions.push('business_name LIKE ?');
+    conditions.push('c.business_name LIKE ?');
     values.push(`%${escapeLike(filters.businessName)}%`);
   }
   if (filters.status !== undefined && filters.status !== null) {
-    conditions.push('status = ?');
+    conditions.push('c.status = ?');
     values.push(filters.status);
   }
 
-  let sql = `SELECT ${CASE_SELECT_FIELDS} FROM \`biz_case\``;
-  if (conditions.length > 0) {
-    sql += ` WHERE ${conditions.join(' AND ')}`;
-  }
-  // 列表默认按申请时间倒序，时间相同再按内部 id 保证顺序稳定
-  sql += ' ORDER BY apply_time DESC, id DESC';
+  return {
+    where: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '',
+    values
+  };
+}
 
-  const [rows] = await database.execute(sql, values);
-  return rows;
+/**
+ * 分页查询办件列表，返回当前页数据与总条数。
+ * 排序按申请时间倒序，时间相同再按内部 id 保证顺序稳定。
+ * @param {object} options 查询参数
+ * @param {object} options.filters 筛选条件 { userid, caseNo, businessName, status }
+ * @param {number} options.page 页码，从 1 开始
+ * @param {number} options.pageSize 每页条数
+ * @returns {Promise<{list: Array, total: number}>} 当前页数据与总条数
+ */
+async function findCasesPage({ filters = {}, page = 1, pageSize = 10 } = {}) {
+  const { where, values } = buildCaseFilter(filters);
+  // 计算偏移量，从 0 开始，如果是第一页，偏移量为 0 就是取第一页数据（第 1 页）
+  // 例如：page = 2, pageSize = 10，偏移量为 10（1*10，(page - 1) * pageSize），就是取第 2 页数据（第 11 到 20 条）
+  const offset = (page - 1) * pageSize;
+
+  // page/pageSize 已在 service 层转成整数并限制范围，这里直接拼接不会引入注入风险
+  const [rows] = await database.execute(
+    `SELECT ${CASE_SELECT_FIELDS} ${CASE_FROM} ${where}
+     ORDER BY c.apply_time DESC, c.id DESC
+     LIMIT ${pageSize} OFFSET ${offset}`,
+    values
+  );
+
+  const [countRows] = await database.execute(
+    `SELECT COUNT(*) AS total ${CASE_FROM} ${where}`,
+    values
+  );
+
+  return { list: rows, total: Number(countRows[0].total) };
 }
 
 /**
@@ -74,7 +115,25 @@ async function findAllCases(filters = {}) {
  */
 async function findCaseByGuid(caseGuid) {
   const [rows] = await database.execute(
-    `SELECT ${CASE_SELECT_FIELDS} FROM \`biz_case\` WHERE caseguid = ?`,
+    `SELECT ${CASE_SELECT_FIELDS} ${CASE_FROM} WHERE c.caseguid = ?`,
+    [caseGuid]
+  );
+  return rows[0] || null;
+}
+
+/**
+ * 查询办件当前状态与已流转到的最大阶段序号。
+ * 用于判断能否编辑、删除、推进，避免前端绕过按钮限制直接调接口。
+ * @param {string} caseGuid 办件对外唯一标识
+ * @returns {Promise<{caseguid: string, status: number, max_stage_no: number}|null>} 状态快照，不存在返回 null
+ */
+async function findCaseStateByGuid(caseGuid) {
+  const [rows] = await database.execute(
+    `SELECT c.caseguid, c.status, COALESCE(MAX(s.sort_no), 0) AS max_stage_no
+     FROM \`biz_case\` c
+     LEFT JOIN \`biz_case_stage\` s ON s.case_guid = c.caseguid
+     WHERE c.caseguid = ?
+     GROUP BY c.caseguid, c.status`,
     [caseGuid]
   );
   return rows[0] || null;
@@ -228,18 +287,19 @@ async function removeCaseByGuid(caseGuid) {
       'DELETE FROM `biz_case` WHERE caseguid = ?',
       [caseGuid]
     );
-
+    // 如果受影响的行数为 0，说明主表不存在，直接回滚
     if (result.affectedRows === 0) {
       await connection.rollback();
       return null;
     }
-
+    // 如果主表删除成功，提交事务
     await connection.commit();
     return { caseguid: caseGuid };
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally {
+    // 无论是否成功，都释放连接
     connection.release();
   }
 }
@@ -344,8 +404,9 @@ async function advanceStage(stageInfo) {
 }
 
 module.exports = {
-  findAllCases,
+  findCasesPage,
   findCaseByGuid,
+  findCaseStateByGuid,
   findStagesByCaseGuid,
   findLatestCaseNo,
   addCase,

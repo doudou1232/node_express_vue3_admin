@@ -4,6 +4,7 @@ import { UserRecord, deleteUserByUserId } from "@/api/users";
 import { storeToRefs } from "pinia";
 import { ElMessage,ElMessageBox  } from "element-plus";
 import { useUsersStore } from "@/store/modules/users";
+import { formatRoles } from "@/constants/permission";
 import UserDetailDialog from "@/views/users/components/UserDetailDialog.vue";
 import AddOrEditUserDialog from "@/views/users/components/addOrEditUserDialog.vue";
 defineOptions({
@@ -115,6 +116,11 @@ onMounted(loadUsers);
         <el-table-column prop="id" label="ID" width="90" />
         <el-table-column prop="realName" label="姓名" min-width="120" />
         <el-table-column prop="username" label="用户名" min-width="140" />
+        <el-table-column label="角色" min-width="150">
+          <template #default="{ row }">
+            {{ formatRoles(row.roles) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="phone" label="手机号">
           <template #default="{ row }">
             {{ row.phone || "-" }}

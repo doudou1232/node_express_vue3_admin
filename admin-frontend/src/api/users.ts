@@ -15,6 +15,10 @@ export type UserRecord = {
   password?: string | null;
   gender: number | string;
   status: number | string;
+  /** 角色码，库中为逗号分隔字符串，提交时可传数组 */
+  roles?: string | Array<string>;
+  /** 显式追加的权限码，角色已能覆盖时留空即可 */
+  permissions?: string | Array<string>;
   create_time?: string;
   update_time?: string;
   // 允许后端返回的额外字段
@@ -110,4 +114,23 @@ export function updateUserByUserId(user: UserRecord) {
   return http.post<UpdateUserResponse, UserRecord>("/api/users/update", {
     data: user
   });
+}
+
+/** 人员选项：办件页面选择申请人 / 办理人时使用，只含标识与姓名 */
+export type UserOption = {
+  userid: string;
+  realName: string | null;
+  username: string;
+};
+
+/** 人员选项响应 */
+export type UserOptionResponse = {
+  code: number;
+  message: string;
+  data: Array<UserOption> | null;
+};
+
+/** 查询可指派人员选项（后端只返回启用状态的人员，不含手机号等敏感字段） */
+export function getUserOptions() {
+  return http.get<UserOptionResponse, void>("/api/users/options");
 }

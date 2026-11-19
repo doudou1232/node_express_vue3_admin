@@ -2,6 +2,7 @@
 import { ref, defineEmits, watch } from 'vue'
 import { addUser, updateUserByUserId, UserRecord } from '@/api/users'
 import { uploadFile } from '@/api/attachment'
+import { ROLE_OPTIONS, ROLES, toRoleList } from '@/constants/permission'
 import type { FormInstance, FormRules, UploadRequestOptions } from 'element-plus'
 import { ElMessage } from 'element-plus'
 
@@ -51,7 +52,9 @@ const rules: FormRules<Partial<UserRecord>> = {
     { pattern: /^[\w.-]+@[\w-]+(\.[\w-]+)+$/, message: '请输入正确的邮箱', trigger: ['blur', 'change'] }
   ],
   gender: [{ required: true, message: '请选择性别', trigger: ['blur', 'change'] }],
-  status: [{ required: true, message: '请选择启用状态', trigger: ['blur', 'change'] }]
+  status: [{ required: true, message: '请选择启用状态', trigger: ['blur', 'change'] }],
+  // 角色决定可访问的菜单与可执行的按钮，必须显式选择
+  roles: [{ required: true, message: '请选择角色', trigger: ['blur', 'change'] }]
 }
 // 头像上传中状态，避免用户重复点击选择
 const uploading = ref<boolean>(false)
@@ -62,7 +65,13 @@ watch(visible, (newVal) => {
     return
   }
   // 编辑时回填其他字段，但密码绝不回填，避免把旧密码明文暴露在表单里
-  userForm.value = { ...detailUser.value, password: '' }
+  // roles 在库中是逗号分隔字符串，表单用数组承载多选，这里统一转换
+  const roleList = toRoleList(detailUser.value.roles)
+  userForm.value = {
+    ...detailUser.value,
+    password: '',
+    roles: roleList.length ? roleList : [ROLES.VIEWER]
+  }
   uploading.value = false
   ruleFormRef.value?.clearValidate()
 })
@@ -175,6 +184,19 @@ const submitForm = async () => {
         <el-form-item label="用户名" prop="username">
           <el-input v-model="userForm.username" placeholder="登录账号，字母开头，仅字母和数字" />
         </el-form-item>
+        <el-form-item label="角色" prop="roles">
+          <el-select v-model="userForm.roles" multiple collapse-tags placeholder="请选择角色" class="role-select">
+            <el-option
+              v-for="item in ROLE_OPTIONS"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+          <div class="role-tip">
+            系统管理员拥有全部权限；办件主管可建单/改单/删单/推进；受理员只能建单与查看；办理人可查看并推进；查看员只读。
+          </div>
+        </el-form-item>
         <el-form-item label="密码" prop="password">
           <el-input
             v-model="userForm.password"
@@ -226,5 +248,16 @@ const submitForm = async () => {
 .avatar-tip {
   color: var(--el-text-color-secondary);
   font-size: 13px;
+}
+
+.role-select {
+  width: 100%;
+}
+
+.role-tip {
+  margin-top: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.6;
 }
 </style>

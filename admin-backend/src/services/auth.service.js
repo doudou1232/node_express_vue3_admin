@@ -4,39 +4,29 @@ const {
 } = require('@/repositories/auth.repository');
 const { verifyPassword } = require('@/utils/password');
 const { TOKEN_TYPE, createTokenPair, verifyToken } = require('@/utils/token');
+const { toList, resolvePermissions } = require('@/constants/permission');
 
 /** 用户停用状态值，停用账号不允许登录 */
 const USER_STATUS_DISABLED = 0;
 
 /**
- * 把库里的逗号分隔字符串转成数组。
- * roles/permissions 用字符串存是为了免建关联表，前端需要的是数组。
- * @param {string|null} value 逗号分隔字符串，如 "admin,common"
- * @returns {Array<string>} 去空后的数组
- */
-function splitToList(value) {
-  if (!value) return [];
-  return String(value)
-    .split(',')
-    .map(item => item.trim())
-    .filter(Boolean);
-}
-
-/**
  * 组装返回给前端的用户画像。
  * 字段名与前端 UserResult.data 对齐（snake_case 只出现在数据库层）。
+ * permissions 由角色推导，保证「改角色即生效」，不需要逐个维护权限码。
  * @param {object} user 数据库用户记录
  * @returns {object} 用户画像
  */
 function buildProfile(user) {
+  const roles = toList(user.roles);
+
   return {
     userid: user.userid,
     username: user.username,
     // 界面展示真实姓名，老数据没有姓名时回落为用户名
     nickname: user.realName || user.username,
     avatar: user.avatar || '',
-    roles: splitToList(user.roles),
-    permissions: splitToList(user.permissions)
+    roles,
+    permissions: resolvePermissions(roles, user.permissions)
   };
 }
 

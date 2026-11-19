@@ -1,5 +1,6 @@
 const {
   getCases,
+  getCaseActionRule,
   getCaseDetail,
   createCase,
   modifyCase,
@@ -39,10 +40,12 @@ function normalizeCaseFields(body) {
  * @param {import('express').Response} response 响应对象
  */
 async function addCase(request, response) {
-  const { userid, status = CASE_STATUS.PENDING } = request.body;
+  const { userid, status = CASE_STATUS.PENDING, handlerName } = request.body;
   const fields = normalizeCaseFields(request.body);
+  // 申请人未传时视为当前登录人自己办件，避免前端漏传导致入库失败
+  const applicantId = userid && String(userid).trim() ? String(userid).trim() : request.user?.userid;
 
-  if (!userid || !String(userid).trim()) {
+  if (!applicantId) {
     return response.json({ code: 400, message: 'userid 不能为空', data: null });
   }
   if (!fields.businessName) {
@@ -51,9 +54,11 @@ async function addCase(request, response) {
 
   try {
     const record = await createCase({
-      userid: String(userid).trim(),
+      userid: applicantId,
       status: Number(status),
-      ...fields
+      ...fields,
+      // 办理人未指定时默认由当前登录人受理（必须放在 ...fields 之后，否则会被 null 覆盖）
+      handlerName: fields.handlerName || (handlerName ? String(handlerName).trim() : null) || request.user?.nickname || null
     });
 
     return response.json({ code: 200, message: '办件创建成功', data: record });
@@ -101,6 +106,21 @@ async function updateCase(request, response) {
     return response.json({ code: 400, message: 'businessName 不能为空', data: null });
   }
 
+  // 业务规则：已结束或已开始流转的办件不允许编辑
+  let rule;
+  try {
+    rule = await getCaseActionRule(String(caseguid).trim());
+  } catch (error) {
+    console.error('查询办件状态失败：', error.message);
+    return response.json({ code: 500, message: '更新办件失败', data: null });
+  }
+  if (!rule) {
+    return response.json({ code: 404, message: '办件不存在', data: null });
+  }
+  if (!rule.editable) {
+    return response.json({ code: 409, message: rule.editReason, data: null });
+  }
+
   let record;
   try {
     record = await modifyCase(String(caseguid).trim(), {
@@ -132,6 +152,21 @@ async function deleteCase(request, response) {
     return response.json({ code: 400, message: 'caseguid 不能为空', data: null });
   }
 
+  // 业务规则：与编辑一致，已结束或已开始流转的办件不允许删除
+  let rule;
+  try {
+    rule = await getCaseActionRule(String(caseguid).trim());
+  } catch (error) {
+    console.error('查询办件状态失败：', error.message);
+    return response.json({ code: 500, message: '删除办件失败', data: null });
+  }
+  if (!rule) {
+    return response.json({ code: 404, message: '办件不存在', data: null });
+  }
+  if (!rule.editable) {
+    return response.json({ code: 409, message: rule.editReason, data: null });
+  }
+
   let record;
   try {
     record = await removeCase(String(caseguid).trim());
@@ -148,16 +183,21 @@ async function deleteCase(request, response) {
 }
 
 /**
- * 查询办件列表（POST /api/cases），支持按 userid/编号/业务名称/状态筛选。
+ * 查询办件列表（POST /api/cases），支持按 userid/编号/业务名称/状态筛选，支持分页。
+ * scope=mine 时只查当前登录人作为申请人的办件，配合前端「只看我的」筛选。
  * @param {import('express').Request} request 请求对象
  * @param {import('express').Response} response 响应对象
  */
 async function getCaseList(request, response) {
-  const { userid, caseNo, businessName, status } = request.body || {};
+  const { userid, caseNo, businessName, status, scope, page, pageSize } = request.body || {};
   const filters = {};
 
   if (userid && String(userid).trim()) {
     filters.userid = String(userid).trim();
+  }
+  // scope=mine 优先于显式 userid：只允许看自己的，避免前端传错 userid 越权查询
+  if (scope === 'mine' && request.user?.userid) {
+    filters.userid = request.user.userid;
   }
   if (caseNo && String(caseNo).trim()) {
     filters.caseNo = String(caseNo).trim();
@@ -171,8 +211,8 @@ async function getCaseList(request, response) {
   }
 
   try {
-    const list = await getCases(filters);
-    return response.json({ code: 200, message: '查询成功', data: list });
+    const result = await getCases({ filters, page, pageSize });
+    return response.json({ code: 200, message: '查询成功', data: result });
   } catch (error) {
     console.error('查询办件列表失败：', error.message);
     return response.json({ code: 500, message: '查询办件列表失败', data: null });
@@ -196,12 +236,28 @@ async function addCaseStage(request, response) {
     return response.json({ code: 400, message: 'caseStatus 必须是数字', data: null });
   }
 
+  // 业务规则：已结束的办件不能再推进
+  let rule;
+  try {
+    rule = await getCaseActionRule(String(caseguid).trim());
+  } catch (error) {
+    console.error('查询办件状态失败：', error.message);
+    return response.json({ code: 500, message: '推进办件阶段失败', data: null });
+  }
+  if (!rule) {
+    return response.json({ code: 404, message: '办件不存在', data: null });
+  }
+  if (!rule.processable) {
+    return response.json({ code: 409, message: '办件已结束，不能再推进阶段', data: null });
+  }
+
   let record;
   try {
     record = await goNextStage({
       caseGuid: caseguid,
       stageName: String(stageName).trim(),
-      handlerName: handlerName ? String(handlerName).trim() : null,
+      // 未指定办理人时记为当前登录人，时间轴上不会出现无名节点
+      handlerName: handlerName ? String(handlerName).trim() : request.user?.nickname || null,
       deptName: deptName ? String(deptName).trim() : null,
       opinion: opinion ? String(opinion).trim() : null,
       caseStatus: Number(caseStatus)

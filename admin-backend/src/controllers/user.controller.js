@@ -3,10 +3,12 @@
   updateUser: modifyUser,
   removeUser,
   getUsers: fetchUsers,
+  getAssignableUsers,
   getUserById: fetchUserById,
   isValidUsername,
   isValidPassword
 } = require('@/services/users.service');
+const { isValidRole, toList } = require('@/constants/permission');
 
 /**
  * 响应约定：HTTP 状态码统一返回 200，业务成败由 body.code 表达
@@ -29,7 +31,8 @@ async function addUser(request, response) {
     email = null,
     avatar = null,
     gender,
-    status = 1
+    status = 1,
+    roles = 'common'
   } = request.body;
 
   if (!username || !String(username).trim()) {
@@ -66,6 +69,16 @@ async function addUser(request, response) {
     });
   }
 
+  // 角色决定权限：只接受权限常量里定义过的角色码，防止前端塞入未知角色
+  const roleList = toList(roles);
+  if (roleList.some(role => !isValidRole(role))) {
+    return response.status(200).json({
+      code: 400,
+      message: '角色不合法',
+      data: null
+    });
+  }
+
   try {
     const user = await createUser({
       username: String(username).trim(),
@@ -76,7 +89,8 @@ async function addUser(request, response) {
       // 头像只接受上传接口返回的相对路径，未上传时为 null
       avatar: avatar ? String(avatar).trim() : null,
       gender: String(gender),
-      status: status
+      status: status,
+      roles: roleList
     });
 
     return response.status(200).json({
@@ -155,7 +169,8 @@ async function updateUser(request, response) {
     email = null,
     avatar = null,
     gender = '0',
-    status = null
+    status = null,
+    roles
   } = request.body;
 
   if (!username || !String(username).trim()) {
@@ -192,6 +207,16 @@ async function updateUser(request, response) {
     });
   }
 
+  // 未传 roles 时保持原角色；传了就必须是合法角色码
+  const roleList = toList(roles);
+  if (roleList.some(role => !isValidRole(role))) {
+    return response.status(200).json({
+      code: 400,
+      message: '角色不合法',
+      data: null
+    });
+  }
+
   let user;
 
   try {
@@ -204,7 +229,8 @@ async function updateUser(request, response) {
       // 全量更新语义：不传 avatar 表示清空头像
       avatar: avatar ? String(avatar).trim() : null,
       gender: String(gender),
-      status: status !== null ? Number(status) : null
+      status: status !== null ? Number(status) : null,
+      roles: roleList
     });
   } catch (error) {
     // 用户名唯一键冲突返回 409
@@ -317,10 +343,37 @@ async function getUsers(request, response) {
   }
 }
 
+/**
+ * 查询可指派人员选项（GET /api/users/options）。
+ * 办件页面需要选择申请人与办理人，这里只返回 userid 与姓名，不暴露联系方式。
+ * @param {import('express').Request} request 请求对象
+ * @param {import('express').Response} response 响应对象
+ */
+async function getUserOptions(request, response) {
+  try {
+    const options = await getAssignableUsers();
+
+    return response.json({
+      code: 200,
+      message: '查询成功',
+      data: options
+    });
+  } catch (error) {
+    console.error('查询人员选项失败：', error.message);
+
+    return response.status(200).json({
+      code: 500,
+      message: '查询人员选项失败',
+      data: null
+    });
+  }
+}
+
 module.exports = {
   addUser,
   getUserById,
   updateUser,
   deleteUser,
-  getUsers
+  getUsers,
+  getUserOptions
 };

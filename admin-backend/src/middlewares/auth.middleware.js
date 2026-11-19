@@ -1,4 +1,5 @@
 const { getCurrentUser } = require('@/services/auth.service');
+const { ALL_PERMISSIONS } = require('@/constants/permission');
 
 /**
  * 从 Authorization 请求头中取出 Bearer token。
@@ -43,7 +44,7 @@ async function authenticate(request, response, next) {
         data: null
       });
     }
-
+    // 挂载当前登录用户信息到request中，便于控制器（中间件也可以使用）直接用 request.user 访问用户信息
     request.user = user;
     return next();
   } catch (error) {
@@ -56,4 +57,27 @@ async function authenticate(request, response, next) {
   }
 }
 
-module.exports = { authenticate, extractToken };
+/**
+ * 权限校验中间件工厂。
+ * 必须在 authenticate 之后使用：它依赖 request.user.permissions。
+ * 多个权限码之间是「或」的关系，命中任意一个即放行。
+ * @param {...string} codes 需要的权限码，如 requirePerms('case:create')
+ * @returns {import('express').RequestHandler} 中间件
+ */
+function requirePerms(...codes) {
+  return (request, response, next) => {
+    console.log('request.user', request);
+    const permissions = request.user?.permissions || [];
+    // 通配权限视为拥有全部权限，管理员无需逐项配置
+    if (permissions.includes(ALL_PERMISSIONS)) return next();
+    if (codes.some(code => permissions.includes(code))) return next();
+
+    return response.status(200).json({
+      code: 403,
+      message: '没有该操作的权限',
+      data: null
+    });
+  };
+}
+
+module.exports = { authenticate, extractToken, requirePerms };

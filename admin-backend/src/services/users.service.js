@@ -1,11 +1,13 @@
 const {
   findAllUsers,
   findUserById,
+  findUserOptions,
   addUser,
   updateUserById,
   removeUserById
 } = require('@/repositories/user.repository');
 const { hashPassword } = require('@/utils/password');
+const { toList } = require('@/constants/permission');
 
 /**
  * 用户名格式：字母开头，只允许字母和数字。
@@ -34,6 +36,25 @@ function isValidUsername(username) {
  */
 function isValidPassword(password) {
   return String(password || '').length >= PASSWORD_MIN_LENGTH;
+}
+
+/**
+ * 把前端传来的角色（数组或逗号分隔字符串）归一化成入库格式。
+ * 空值回落 common：不给任何办件权限，避免误授权。
+ * @param {string|Array<string>} roles 角色码
+ * @returns {string} 逗号分隔的角色码
+ */
+function normalizeRoles(roles) {
+  const list = toList(roles);
+  return list.length > 0 ? list.join(',') : 'common';
+}
+
+/**
+ * 查询可指派人员选项（GET /api/users/options），供办件页面选择申请人和办理人。
+ * @returns {Promise<Array>} 人员选项
+ */
+function getAssignableUsers() {
+  return findUserOptions();
 }
 
 /**
@@ -70,6 +91,8 @@ function getUserById(userId) {
 function createUser(userInfo) {
   return addUser({
     ...userInfo,
+    roles: normalizeRoles(userInfo.roles),
+    permissions: '',
     passwordHash: userInfo.password ? hashPassword(userInfo.password) : null
   });
 }
@@ -82,8 +105,12 @@ function createUser(userInfo) {
  * @returns {Promise<object|null>} 更新成功的用户 ID，用户不存在时返回 null（上层转 404）
  */
 function updateUser(userId, userInfo) {
+  // 未传角色时保持库中原角色；传了才覆盖，避免只改手机号就把权限刷成默认值
+  const hasRoles = toList(userInfo.roles).length > 0;
+
   return updateUserById(userId, {
     ...userInfo,
+    roles: hasRoles ? normalizeRoles(userInfo.roles) : null,
     passwordHash: userInfo.password ? hashPassword(userInfo.password) : null
   });
 }
@@ -101,6 +128,7 @@ module.exports = {
   isValidUsername,
   isValidPassword,
   getUsers,
+  getAssignableUsers,
   getUserById,
   createUser,
   updateUser,

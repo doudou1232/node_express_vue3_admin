@@ -42,7 +42,7 @@ async function findAllUsers(filters = {}) {
   }
 
   let sql = `
-    SELECT id, userid, username, real_name AS realName, phone, email, avatar, gender, status, create_time, update_time
+    SELECT id, userid, username, real_name AS realName, phone, email, avatar, gender, status, roles, permissions, create_time, update_time
     FROM \`sys_user\`
   `;
 
@@ -67,8 +67,8 @@ async function addUser(userInfo) {
   // 服务端生成 userid 唯一标识，避免信任客户端数据
   const userId = uuidv4();
   const sql = `
-    INSERT INTO \`sys_user\` (userid, username, real_name, phone, email, avatar, gender, status, password_hash)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO \`sys_user\` (userid, username, real_name, phone, email, avatar, gender, status, password_hash, roles, permissions)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   const values = [
     userId,
@@ -80,7 +80,10 @@ async function addUser(userInfo) {
     userInfo.gender,
     userInfo.status,
     // 未设置密码时存 null，该账号暂时无法登录
-    userInfo.passwordHash || null
+    userInfo.passwordHash || null,
+    userInfo.roles || 'common',
+    // permissions 留空，登录时由角色推导，避免角色与权限两处维护产生漂移
+    userInfo.permissions || ''
   ];
   const [result] = await database.execute(sql, values);
   console.log(result);
@@ -94,6 +97,7 @@ async function addUser(userInfo) {
     avatar: userInfo.avatar,
     gender: userInfo.gender,
     status: userInfo.status,
+    roles: userInfo.roles || 'common',
     create_time: result.insertTime,
     update_time: result.updateTime
   };
@@ -108,13 +112,28 @@ async function addUser(userInfo) {
 async function findUserById(userId) {
   console.log(userId);
   const sql = `
-    SELECT id, userid, username, real_name AS realName, phone, email, avatar, gender, status, create_time, update_time
+    SELECT id, userid, username, real_name AS realName, phone, email, avatar, gender, status, roles, permissions, create_time, update_time
     FROM \`sys_user\`
     WHERE userid = ?
   `;
 
   const [rows] = await database.execute(sql, [userId]);
   return rows[0] || null;
+}
+
+/**
+ * 查询可指派的人员选项（userid + 姓名），供办件页面选择申请人与办理人。
+ * 只返回最小字段，不暴露手机号、邮箱等敏感信息。
+ * @returns {Promise<Array>} 启用状态的人员选项
+ */
+async function findUserOptions() {
+  const [rows] = await database.execute(
+    `SELECT userid, real_name AS realName, username
+     FROM \`sys_user\`
+     WHERE status = 1
+     ORDER BY id ASC`
+  );
+  return rows;
 }
 
 /**
@@ -128,7 +147,8 @@ async function findUserById(userId) {
 async function updateUserById(userId, userInfo) {
   const sql = `
     UPDATE \`sys_user\`
-    SET username = ?, real_name = ?, phone = ?, email = ?, avatar = ?, gender = ?, status = ?, update_time = NOW()
+    SET username = ?, real_name = ?, phone = ?, email = ?, avatar = ?, gender = ?, status = ?,
+        roles = COALESCE(?, roles), permissions = COALESCE(?, permissions), update_time = NOW()
       ${userInfo.passwordHash ? ', password_hash = ?' : ''}
     WHERE userid = ?
   `;
@@ -139,7 +159,11 @@ async function updateUserById(userId, userInfo) {
     userInfo.email,
     userInfo.avatar,
     userInfo.gender,
-    userInfo.status
+    userInfo.status,
+    // 未传角色时置 null，SQL 用 COALESCE 保留库中原值，避免编辑其他字段把权限刷掉
+    userInfo.roles || null,
+    // 传了角色就清空显式权限，统一走角色推导，防止旧权限残留
+    userInfo.roles ? '' : null
   ];
   if (userInfo.passwordHash) {
     values.push(userInfo.passwordHash);
@@ -177,6 +201,7 @@ module.exports = {
   escapeLike,
   findAllUsers,
   findUserById,
+  findUserOptions,
   addUser,
   updateUserById,
   removeUserById
