@@ -85,9 +85,9 @@ export type CaseListParams = {
   pageSize?: number;
 };
 
-/** 分页结果 */
-export type CasePageResult = {
-  list: Array<CaseRecord>;
+/** 后端原始分页结构：list 为 snake_case 记录，转换成驼峰前不要直接使用 */
+type CasePageRaw = {
+  list: Array<CaseRaw>;
   total: number;
   page: number;
   pageSize: number;
@@ -170,7 +170,7 @@ function toCaseStage(raw: CaseStageRaw): CaseStage {
  * @returns 转换后的分页结果
  */
 export async function getCaseList(params: CaseListParams = {}) {
-  const res = await http.post<ApiResult<CasePageResult & { list: Array<CaseRaw> } | null>, CaseListParams>(
+  const res = await http.post<ApiResult<CasePageRaw | null>, CaseListParams>(
     "/api/cases",
     { data: params }
   );
