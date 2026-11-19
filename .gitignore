@@ -1,3 +1,5 @@
 node_modules/
 .env
 npm-debug.log*
+# 用户上传的文件实体不进版本库
+uploads/

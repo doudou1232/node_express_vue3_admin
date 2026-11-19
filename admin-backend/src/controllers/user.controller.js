@@ -3,8 +3,18 @@
   updateUser: modifyUser,
   removeUser,
   getUsers: fetchUsers,
-  getUserById: fetchUserById
+  getAssignableUsers,
+  getUserById: fetchUserById,
+  isValidUsername,
+  isValidPassword
 } = require('@/services/users.service');
+const { isValidRole, toList } = require('@/constants/permission');
+
+/**
+ * 响应约定：HTTP 状态码统一返回 200，业务成败由 body.code 表达
+ * （200 成功 / 400 参数错误 / 404 不存在 / 409 唯一键冲突 / 500 服务器错误），
+ * 前端统一走成功回调并按 code 分支处理提示信息。
+ */
 
 /**
  * 创建用户。
@@ -15,16 +25,56 @@ async function addUser(request, response) {
   console.log(request.body);
   const {
     username,
+    realName,
+    password = null,
     phone = null,
     email = null,
+    avatar = null,
     gender,
-    status = 1
+    status = 1,
+    roles = 'common'
   } = request.body;
 
   if (!username || !String(username).trim()) {
-    return response.status(400).json({
+    return response.status(200).json({
       code: 400,
-      message: 'username 不能为空',
+      message: '用户名不能为空',
+      data: null
+    });
+  }
+
+  // 用户名即登录账号，只允许字母开头 + 字母数字，中文姓名走 realName
+  if (!isValidUsername(String(username).trim())) {
+    return response.status(200).json({
+      code: 400,
+      message: '用户名只能使用字母（可含数字），且需以字母开头',
+      data: null
+    });
+  }
+
+  if (!realName || !String(realName).trim()) {
+    return response.status(200).json({
+      code: 400,
+      message: '姓名不能为空',
+      data: null
+    });
+  }
+
+  // 密码可选：填了就必须满足长度要求，不填则该账号暂时无法登录
+  if (password && !isValidPassword(password)) {
+    return response.status(200).json({
+      code: 400,
+      message: '密码长度不能少于 6 位',
+      data: null
+    });
+  }
+
+  // 角色决定权限：只接受权限常量里定义过的角色码，防止前端塞入未知角色
+  const roleList = toList(roles);
+  if (roleList.some(role => !isValidRole(role))) {
+    return response.status(200).json({
+      code: 400,
+      message: '角色不合法',
       data: null
     });
   }
@@ -32,10 +82,15 @@ async function addUser(request, response) {
   try {
     const user = await createUser({
       username: String(username).trim(),
+      realName: String(realName).trim(),
+      password: password ? String(password) : null,
       phone: phone ? String(phone).trim() : null,
       email: email ? String(email).trim() : null,
+      // 头像只接受上传接口返回的相对路径，未上传时为 null
+      avatar: avatar ? String(avatar).trim() : null,
       gender: String(gender),
-      status: status
+      status: status,
+      roles: roleList
     });
 
     return response.status(200).json({
@@ -44,16 +99,17 @@ async function addUser(request, response) {
       data: user
     });
   } catch (error) {
+    console.log(error);
     if (error.code === 'ER_DUP_ENTRY') {
-      return response.status(409).json({
+      return response.status(200).json({
         code: 409,
-        message: '用户名已存在',
+        message: '用户已存在，用户名、手机号、邮箱不能重复',
         data: null
       });
     }
 
     console.error('创建用户失败：', error.message);
-    return response.status(500).json({
+    return response.status(200).json({
       code: 500,
       message: '创建用户失败',
       data: null
@@ -67,15 +123,14 @@ async function addUser(request, response) {
  * @param {import('express').Response} response 响应对象
  */
 async function getUserById(request, response) {
-  // 路径参数是 string，必须转换为数字后再校验
+  // 详情按 userid（UUID 字符串）查询，路由参数名为 :userid
   const userId = request.params.userid;
   let user;
-
   try {
     user = await fetchUserById(userId);
   } catch (error) {
     console.error('查询用户失败：', error.message);
-    return response.status(500).json({
+    return response.status(200).json({
       code: 500,
       message: '查询用户失败',
       data: null
@@ -84,7 +139,7 @@ async function getUserById(request, response) {
 
   // repository 未找到时返回 null，这里转为 404
   if (!user) {
-    return response.status(404).json({
+    return response.status(200).json({
       code: 404,
       message: '用户不存在',
       data: null
@@ -105,26 +160,59 @@ async function getUserById(request, response) {
  * @param {import('express').Response} response 响应对象
  */
 async function updateUser(request, response) {
-  const userId = Number(request.params.id);
+  const userId = request.body.userid;
   const {
     username,
+    realName,
+    password = null,
     phone = null,
-    gender = 0,
-    status = 1
+    email = null,
+    avatar = null,
+    gender = '0',
+    status = null,
+    roles
   } = request.body;
 
-  if (!Number.isInteger(userId)) {
-    return response.status(400).json({
+  if (!username || !String(username).trim()) {
+    return response.status(200).json({
       code: 400,
-      message: '用户 ID 必须是数字',
+      message: '用户名不能为空',
       data: null
     });
   }
 
-  if (!username || !String(username).trim()) {
-    return response.status(400).json({
+  // 用户名即登录账号，只允许字母开头 + 字母数字，中文姓名走 realName
+  if (!isValidUsername(String(username).trim())) {
+    return response.status(200).json({
       code: 400,
-      message: 'username 不能为空',
+      message: '用户名只能使用字母（可含数字），且需以字母开头',
+      data: null
+    });
+  }
+
+  if (!realName || !String(realName).trim()) {
+    return response.status(200).json({
+      code: 400,
+      message: '姓名不能为空',
+      data: null
+    });
+  }
+
+  // 密码留空表示不修改，填了才校验长度并覆盖原密码
+  if (password && !isValidPassword(password)) {
+    return response.status(200).json({
+      code: 400,
+      message: '密码长度不能少于 6 位',
+      data: null
+    });
+  }
+
+  // 未传 roles 时保持原角色；传了就必须是合法角色码
+  const roleList = toList(roles);
+  if (roleList.some(role => !isValidRole(role))) {
+    return response.status(200).json({
+      code: 400,
+      message: '角色不合法',
       data: null
     });
   }
@@ -134,22 +222,28 @@ async function updateUser(request, response) {
   try {
     user = await modifyUser(userId, {
       username: String(username).trim(),
+      realName: String(realName).trim(),
+      password: password ? String(password) : null,
       phone: phone ? String(phone).trim() : null,
+      email: email ? String(email).trim() : null,
+      // 全量更新语义：不传 avatar 表示清空头像
+      avatar: avatar ? String(avatar).trim() : null,
       gender: String(gender),
-      status: String(status)
+      status: status !== null ? Number(status) : null,
+      roles: roleList
     });
   } catch (error) {
     // 用户名唯一键冲突返回 409
     if (error.code === 'ER_DUP_ENTRY') {
-      return response.status(409).json({
+      return response.status(200).json({
         code: 409,
-        message: '用户名已存在',
+        message: '用户已存在，用户名、手机号、邮箱不能重复',
         data: null
       });
     }
 
     console.error('更新用户失败：', error.message);
-    return response.status(500).json({
+    return response.status(200).json({
       code: 500,
       message: '更新用户失败',
       data: null
@@ -158,7 +252,7 @@ async function updateUser(request, response) {
 
   // service 返回 null 表示没有匹配的行，转为 404
   if (!user) {
-    return response.status(404).json({
+    return response.status(200).json({
       code: 404,
       message: '用户不存在',
       data: null
@@ -166,7 +260,7 @@ async function updateUser(request, response) {
   }
 
   return response.json({
-    code: 0,
+    code: 200,
     message: '用户更新成功',
     data: user
   });
@@ -178,23 +272,15 @@ async function updateUser(request, response) {
  * @param {import('express').Response} response 响应对象
  */
 async function deleteUser(request, response) {
-  const userId = Number(request.params.id);
-
-  if (!Number.isInteger(userId)) {
-    return response.status(400).json({
-      code: 400,
-      message: '用户 ID 必须是数字',
-      data: null
-    });
-  }
-
+  console.log(request.body);
+  const userid = request.body.userid;
   let user;
 
   try {
-    user = await removeUser(userId);
+    user = await removeUser(userid);
   } catch (error) {
     console.error('删除用户失败：', error.message);
-    return response.status(500).json({
+    return response.status(200).json({
       code: 500,
       message: '删除用户失败',
       data: null
@@ -202,7 +288,7 @@ async function deleteUser(request, response) {
   }
 
   if (!user) {
-    return response.status(404).json({
+    return response.status(200).json({
       code: 404,
       message: '用户不存在',
       data: null
@@ -210,23 +296,26 @@ async function deleteUser(request, response) {
   }
 
   return response.json({
-    code: 0,
+    code: 200,
     message: '用户删除成功',
     data: user
   });
 }
 
 /**
- * 查询用户列表，支持按用户名/手机号/邮箱模糊筛选。
+ * 查询用户列表，支持按用户名/真实姓名/手机号/邮箱模糊筛选。
  * @param {import('express').Request} request 请求对象
  * @param {import('express').Response} response 响应对象
  */
 async function getUsers(request, response) {
-  // 查询条件：用户名/手机号/邮箱，均模糊匹配，不传则查全部
-  const { username, phone, email } = request.body || {};
+  // 查询条件：用户名/真实姓名/手机号/邮箱，均模糊匹配，不传则查全部
+  const { username, realName, phone, email } = request.body || {};
   const filters = {};
   if (username && String(username).trim()) {
     filters.username = String(username).trim();
+  }
+  if (realName && String(realName).trim()) {
+    filters.realName = String(realName).trim();
   }
   if (phone && String(phone).trim()) {
     filters.phone = String(phone).trim();
@@ -239,16 +328,42 @@ async function getUsers(request, response) {
     const users = await fetchUsers(filters);
 
     return response.json({
-      code: 0,
+      code: 200,
       message: '查询成功',
       data: users
     });
   } catch (error) {
     console.error('查询用户失败：', error.message);
 
-    return response.status(500).json({
+    return response.status(200).json({
       code: 500,
       message: '查询用户失败',
+      data: null
+    });
+  }
+}
+
+/**
+ * 查询可指派人员选项（GET /api/users/options）。
+ * 办件页面需要选择申请人与办理人，这里只返回 userid 与姓名，不暴露联系方式。
+ * @param {import('express').Request} request 请求对象
+ * @param {import('express').Response} response 响应对象
+ */
+async function getUserOptions(request, response) {
+  try {
+    const options = await getAssignableUsers();
+
+    return response.json({
+      code: 200,
+      message: '查询成功',
+      data: options
+    });
+  } catch (error) {
+    console.error('查询人员选项失败：', error.message);
+
+    return response.status(200).json({
+      code: 500,
+      message: '查询人员选项失败',
       data: null
     });
   }
@@ -259,5 +374,6 @@ module.exports = {
   getUserById,
   updateUser,
   deleteUser,
-  getUsers
+  getUsers,
+  getUserOptions
 };

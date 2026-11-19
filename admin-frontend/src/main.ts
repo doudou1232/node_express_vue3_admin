@@ -9,6 +9,7 @@ import { useElementPlus } from "@/plugins/elementPlus";
 import { injectResponsiveStorage } from "@/utils/responsive";
 import dayjs from "dayjs";
 import Table from "@pureadmin/table";
+import { Vue3SeamlessScroll  } from "vue3-seamless-scroll";
 // import PureDescriptions from "@pureadmin/descriptions";
 
 // 引入重置样式
@@ -45,6 +46,7 @@ import { Auth } from "@/components/ReAuth";
 import { Perms } from "@/components/RePerms";
 app.component("Auth", Auth);
 app.component("Perms", Perms);
+app.component("SeamlessScroll", Vue3SeamlessScroll);
 
 // 全局注册vue-tippy
 import "tippy.js/dist/tippy.css";

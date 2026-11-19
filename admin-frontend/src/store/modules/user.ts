@@ -18,6 +18,8 @@ import { type DataInfo, setToken, removeToken, userKey } from "@/utils/auth";
 
 export const useUserStore = defineStore("pure-user", {
   state: (): userType => ({
+    // 用户唯一标识
+    userid: storageLocal().getItem<DataInfo<number>>(userKey)?.userid ?? "",
     // 头像
     avatar: storageLocal().getItem<DataInfo<number>>(userKey)?.avatar ?? "",
     // 用户名
@@ -35,6 +37,10 @@ export const useUserStore = defineStore("pure-user", {
     loginDay: 7
   }),
   actions: {
+    /** 存储用户唯一标识 */
+    SET_USERID(userid: string) {
+      this.userid = userid;
+    },
     /** 存储头像 */
     SET_AVATAR(avatar: string) {
       this.avatar = avatar;
@@ -68,7 +74,8 @@ export const useUserStore = defineStore("pure-user", {
       return new Promise<UserResult>((resolve, reject) => {
         getLogin(data)
           .then(data => {
-            if (data?.success) setToken(data.data);
+            // 后端约定 HTTP 一律 200，业务成败由 code 区分
+            if (data?.code === 200 && data.data) setToken(data.data);
             resolve(data);
           })
           .catch(error => {
@@ -78,6 +85,7 @@ export const useUserStore = defineStore("pure-user", {
     },
     /** 前端登出（不调用接口） */
     logOut() {
+      this.userid = "";
       this.username = "";
       this.roles = [];
       this.permissions = [];
@@ -91,9 +99,12 @@ export const useUserStore = defineStore("pure-user", {
       return new Promise<RefreshTokenResult>((resolve, reject) => {
         refreshTokenApi(data)
           .then(data => {
-            if (data) {
+            // code 401 已由响应拦截器统一清空登录态并跳转登录页
+            if (data?.code === 200 && data.data) {
               setToken(data.data);
               resolve(data);
+            } else {
+              reject(new Error(data?.message || "登录已过期"));
             }
           })
           .catch(error => {

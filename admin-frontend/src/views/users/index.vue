@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { UserRecord } from "@/api/users";
+import { UserRecord, deleteUserByUserId } from "@/api/users";
 import { storeToRefs } from "pinia";
-import { ElMessage } from "element-plus";
+import { ElMessage,ElMessageBox  } from "element-plus";
 import { useUsersStore } from "@/store/modules/users";
+import { formatRoles } from "@/constants/permission";
 import UserDetailDialog from "@/views/users/components/UserDetailDialog.vue";
+import AddOrEditUserDialog from "@/views/users/components/addOrEditUserDialog.vue";
 defineOptions({
   name: "UserList"
 });
@@ -12,6 +14,8 @@ const usersStore = useUsersStore();
 const { users, loading } = storeToRefs(usersStore);
 // 详情弹窗是否可见
 const detailVisible = ref(false);
+// 新增和编辑弹窗是否可见
+const addOrEditVisible = ref(false);
 const keyword = ref("");
 
 const filteredUsers = computed(() => {
@@ -22,13 +26,14 @@ const filteredUsers = computed(() => {
   }
 
   return users.value.filter(user => {
-    return [user.username, user.phone ?? ""].some(field =>
-      field.toLowerCase().includes(value)
+    // 同时按真实姓名与登录用户名检索，方便中文名和英文账号都能搜到
+    return [user.realName ?? "", user.username, user.phone ?? ""].some(field =>
+      String(field).toLowerCase().includes(value)
     );
   });
 });
 
-function formatGender(gender: number) {
+function formatGender(gender: number | string) {
   return gender == 1 ? "男" : gender == 2 ? "女" : "未知";
 }
 
@@ -44,16 +49,44 @@ async function loadUsers() {
     ElMessage.error(`用户列表加载失败：${message}`);
   }
 }
+// 新增时为空对象、编辑时为完整记录，故用 Partial 描述两种形态
+const detailUser = ref<Partial<UserRecord>>({});
 // 新增用户
 const addUser = () => {
-  // 跳转到新增用户页面
-  console.log("跳转到新增用户页面");
+  // 详情/编辑/新增共用同一个 detailUser，不重置会把上次的完整记录带进新增表单
+  detailUser.value = {};
+  addOrEditVisible.value = true;
 };
-const detailUser = ref<UserRecord>();
 // 显示用户详情
 const showDetail = async (user: UserRecord) => {
-  detailUser.value = user;
+  detailUser.value = user || {};
   detailVisible.value = true;
+};
+// 删除用户
+const deleteUser = async (user: UserRecord) => {
+  ElMessageBox.confirm("确认删除该用户吗？", "删除确认", {
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
+    type: "warning"
+  }).then(async () => {
+    try {
+      const res = await deleteUserByUserId({ userid: user.userid });
+      if (res.code == 200) {
+        ElMessage.success("删除成功");
+        loadUsers();
+      } else {
+        ElMessage.error(`删除失败：${res.message || "删除失败" }`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "请求失败";
+      ElMessage.error(`删除失败：${message}`);
+    }
+  });
+};
+// 编辑用户
+const editUser = (user: UserRecord) => {
+  detailUser.value = user || {};
+  addOrEditVisible.value = true;
 };
 onMounted(loadUsers);
 </script>
@@ -75,18 +108,19 @@ onMounted(loadUsers);
 
     <el-card shadow="never" class="user-card">
       <div class="toolbar">
-        <el-input
-          v-model="keyword"
-          clearable
-          placeholder="搜索用户名"
-          class="search-input"
-        />
+        <el-input v-model="keyword" clearable placeholder="搜索姓名/用户名/手机号" class="search-input" />
         <span class="result-count">共 {{ filteredUsers.length }} 人</span>
       </div>
 
       <el-table v-loading="loading" :data="filteredUsers" stripe>
         <el-table-column prop="id" label="ID" width="90" />
-        <el-table-column prop="username" label="用户名" min-width="160" />
+        <el-table-column prop="realName" label="姓名" min-width="120" />
+        <el-table-column prop="username" label="用户名" min-width="140" />
+        <el-table-column label="角色" min-width="150">
+          <template #default="{ row }">
+            {{ formatRoles(row.roles) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="phone" label="手机号">
           <template #default="{ row }">
             {{ row.phone || "-" }}
@@ -117,25 +151,20 @@ onMounted(loadUsers);
         </el-table-column>
         <el-table-column fixed="right" label="操作" width="180" align="center">
           <template #default="{ row }">
-            <el-button type="primary" size="small" link>编辑</el-button>
-            <el-button type="danger" size="small" link>删除</el-button>
-            <el-button
-              type="success"
-              size="small"
-              link
-              @click="showDetail(row)"
-            >
+            <el-button type="primary" size="small" link @click="editUser(row)">编辑</el-button>
+            <el-button type="danger" size="small" link @click="deleteUser(row)">删除</el-button>
+            <el-button type="success" size="small" link @click="showDetail(row)">
               详情
             </el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
-    <!-- 新增和编辑弹窗 -->
-    <user-detail-dialog
-      v-model:visible="detailVisible"
-      v-model:detail-user="detailUser"
-    />
+    <!-- 用户详情弹窗 -->
+    <user-detail-dialog v-model:visible="detailVisible" v-model:detail-user="detailUser" />
+    <!-- 新增和编辑用户弹窗 -->
+    <add-or-edit-user-dialog v-model:visible="addOrEditVisible" v-model:detail-user="detailUser"
+      @refreshData="loadUsers" />
   </div>
 </template>
 

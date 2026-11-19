@@ -37,6 +37,8 @@ export type setType = {
 };
 
 export type userType = {
+  /** 用户唯一标识，办件等业务按人过滤时使用 */
+  userid?: string;
   avatar?: string;
   username?: string;
   nickname?: string;

@@ -9,6 +9,8 @@ export interface DataInfo<T> {
   expires: T;
   /** 用于调用刷新accessToken的接口时所需的token */
   refreshToken: string;
+  /** 用户唯一标识，办件等业务需要按人过滤时使用 */
+  userid?: string;
   /** 头像 */
   avatar?: string;
   /** 用户名 */
@@ -44,12 +46,17 @@ export function getToken(): DataInfo<number> {
  * 无感刷新：后端返回`accessToken`（访问接口使用的`token`）、`refreshToken`（用于调用刷新`accessToken`的接口时所需的`token`，`refreshToken`的过期时间（比如30天）应大于`accessToken`的过期时间（比如2小时））、`expires`（`accessToken`的过期时间）
  * 将`accessToken`、`expires`、`refreshToken`这三条信息放在key值为authorized-token的cookie里（过期自动销毁）
  * 将`avatar`、`username`、`nickname`、`roles`、`permissions`、`refreshToken`、`expires`这七条信息放在key值为`user-info`的localStorage里（利用`multipleTabsKey`当浏览器完全关闭后自动销毁）
+ * 其中 expires 为后端返回的 ISO 字符串，同时兼容 Date 入参
  */
-export function setToken(data: DataInfo<Date>) {
+export function setToken(data: DataInfo<string | Date>) {
   let expires = 0;
   const { accessToken, refreshToken } = data;
   const { isRemembered, loginDay } = useUserStoreHook();
-  expires = new Date(data.expires).getTime(); // 如果后端直接设置时间戳，将此处代码改为expires = data.expires，然后把上面的DataInfo<Date>改成DataInfo<number>即可
+  // expires 后端返回 ISO 字符串，同时兼容直接传 Date 的场景
+  expires =
+    data.expires instanceof Date
+      ? data.expires.getTime()
+      : new Date(data.expires).getTime();
   const cookieString = JSON.stringify({ accessToken, expires, refreshToken });
 
   expires > 0
@@ -68,7 +75,8 @@ export function setToken(data: DataInfo<Date>) {
       : {}
   );
 
-  function setUserKey({ avatar, username, nickname, roles, permissions }) {
+  function setUserKey({ userid, avatar, username, nickname, roles, permissions }) {
+    useUserStoreHook().SET_USERID(userid ?? "");
     useUserStoreHook().SET_AVATAR(avatar);
     useUserStoreHook().SET_USERNAME(username);
     useUserStoreHook().SET_NICKNAME(nickname);
@@ -77,6 +85,7 @@ export function setToken(data: DataInfo<Date>) {
     storageLocal().setItem(userKey, {
       refreshToken,
       expires,
+      userid,
       avatar,
       username,
       nickname,
@@ -88,6 +97,7 @@ export function setToken(data: DataInfo<Date>) {
   if (data.username && data.roles) {
     const { username, roles } = data;
     setUserKey({
+      userid: data?.userid ?? "",
       avatar: data?.avatar ?? "",
       username,
       nickname: data?.nickname ?? "",
@@ -95,6 +105,8 @@ export function setToken(data: DataInfo<Date>) {
       permissions: data?.permissions ?? []
     });
   } else {
+    const userid =
+      storageLocal().getItem<DataInfo<number>>(userKey)?.userid ?? "";
     const avatar =
       storageLocal().getItem<DataInfo<number>>(userKey)?.avatar ?? "";
     const username =
@@ -106,6 +118,7 @@ export function setToken(data: DataInfo<Date>) {
     const permissions =
       storageLocal().getItem<DataInfo<number>>(userKey)?.permissions ?? [];
     setUserKey({
+      userid,
       avatar,
       username,
       nickname,
