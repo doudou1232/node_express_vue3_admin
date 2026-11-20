@@ -1,48 +1,59 @@
-# 管理端项目说明与开发规则
+# Vue3 管理端项目说明与开发规则
 
-## Codex 规则目录
+## 规则文件（开始任务前按序读取）
 
-详细规则位于仓库根目录 `.codex/rules/`（即 `../.codex/rules/`），开始处理本项目任务时，按以下优先级读取：
+详细规则位于仓库根目录 `../.codex/rules/`（前后端共享）：
 
-1. `../.codex/rules/project-overview.md`：始终读取，了解全栈架构与前后端连接关系。
-2. `../.codex/rules/directory-structure.md`：始终读取，了解前端目录约束与新增文件存放位置。
-3. `../.codex/rules/coding-standards.md`：始终读取，了解前端代码编写规范（Vue 3 组件结构、Pinia、HTTP、路由等）。
-4. `../.codex/rules/config-reference.md`：修改配置前读取，了解 Vite、TypeScript、lint 工具链配置。
+1. `../.codex/rules/project-overview.md`：始终读取——全栈架构、认证与权限体系。
+2. `../.codex/rules/directory-structure.md`：始终读取——前端目录约束与新增文件存放位置。
+3. `../.codex/rules/coding-standards.md`：始终读取——Vue3 组件结构、命名、注释、TypeScript 规范。
+4. `../.codex/rules/config-reference.md`：修改配置前读取——Vite / TS / lint 工具链。
+5. `../.codex/rules/api-development-guide.md`：理解后端接口约定时读取。
 
 ## 项目定位
 
-本项目基于 `pure-admin-thin` 官方精简脚手架，使用 Vue 3、Vite、TypeScript、Pinia 和 Element Plus。脚手架负责布局、左侧菜单、多页签和基础路由；业务代码只放在对应的 `api`、`store`、`router` 和 `views` 目录中。
+基于 `pure-admin-thin` 精简脚手架（Vue 3.5 + TypeScript + Vite 7 + Pinia 3 + Element Plus + Tailwind CSS 4）。脚手架负责布局、左侧菜单、多页签和路由框架；业务代码只写进 `api`、`constants`、`store`、`router/modules`、`views`。
 
-## 当前工作区
+## 架构与数据流
 
-- `../admin-backend/index.js`：Node.js + Express 后端项目入口（后端代码统一在 `admin-backend/` 目录）。
-- `admin-frontend/`：本目录，Vue 管理端项目。
-- Vite 开发服务器默认端口为 `8848`。
-- `/api` 请求代理到后端 `http://localhost:3000`。
+```text
+views/<模块>/index.vue ─┬─ 默认：直接调 src/api/<模块>.ts
+                        └─ 跨页面共享状态时：src/store/modules/<模块>.ts
+src/api/<模块>.ts → PureHttp（自动带 token、401 拦截、刷新重试）
+                  → Vite /api 代理 → Express :3000 → MySQL
+```
+
+- 登录已对接真实后端：`api/user.ts` 的 `getLogin` / `refreshTokenApi` → `/api/auth/*`；`mock/` 仅保留脚手架演示数据。
+- 权限双层控制：
+  - 菜单/路由级：`router/modules/<模块>.ts` 的 `meta.roles`（角色码数组，登录后由后端下发）。
+  - 按钮级：`hasPerms(权限码)`（权限码如 `case:create`，登录后由后端下发 permissions）。
+- 响应判断：`res.code === 200` 为成功（code 与后端 HTTP 状态码一致）；HTTP 200 + `code: 401` 由 http 封装拦截并跳转登录。
 
 ## 目录约定
 
-- `src/router/modules/`：新增菜单和页面路由。
-- `src/views/`：页面组件。
-- `src/api/`：HTTP 请求定义和响应类型。
-- `src/store/modules/`：Pinia 状态管理。
-- `src/layout/`：脚手架布局，不随意修改。
+- `src/router/modules/<模块>.ts`：菜单路由，`meta.title/icon/rank/roles`。
+- `src/views/<模块>/index.vue`：页面；页面私有组件放 `src/views/<模块>/components/`（PascalCase.vue）。
+- `src/api/<模块>.ts`：接口函数 + 类型定义（Raw 原始结构 → 驼峰页面类型）+ 转换函数。
+- `src/constants/<模块>.ts`：展示常量（状态文案、标签色、权限码引用）。
+- `src/store/modules/`：仅跨页面共享的状态才建（现有 user / permission / users / app / epTheme / multiTags / settings）。
+- `src/components/Re*/`：跨模块公共组件（脚手架已有，优先复用）。
+- `src/layout/`：脚手架布局，不修改。
 
-## 用户管理流程
+## 开发命令（在本目录执行，包管理器强制 pnpm）
 
-```text
-views/users → Pinia store → api/users → Vite /api 代理 → Node GET /api/users → MySQL
-```
-
-## 开发命令
-
-- `pnpm install`：安装依赖。
-- `pnpm dev`：启动前端开发服务。
-- `pnpm typecheck`：执行 TypeScript 检查。
+- `pnpm dev`：启动开发服务（端口 8848）。
+- `pnpm typecheck`：`tsc` + `vue-tsc` 类型检查（交付前必跑）。
+- `pnpm lint`：ESLint → Prettier → Stylelint（commit 时 husky + lint-staged 自动执行）。
 
 ## 开发约定
 
-- 复用脚手架已有布局、路由和 Element Plus 组件，不重新搭建管理端框架。
-- 使用 TypeScript 和 `<script setup lang="ts">` 编写新增页面。
-- API 响应错误必须给用户明确反馈，加载状态必须可见。
-- 新增功能后至少执行类型检查或开发服务器验证。
+- `<script setup lang="ts">` + `defineOptions({ name: "XxxYyy" })`；禁止 Options API。
+- 优先复用 Element Plus 组件与 `@pureadmin/*` 封装，不手写重复 UI。
+- 加载状态必须可见（`v-loading` / 按钮 `:loading`）；请求失败必须 `ElMessage.error` 明确反馈。
+- 提交信息遵循 Conventional Commits（commitlint 强制检查）。
+
+## AI 协作规则
+
+- 改动前先读上述规则文件，按现有代码风格续写，能复用的接着复用，不重新造轮子。
+- 所有代码修改先列出「改了哪些文件、为什么」，经用户确认后才落盘。
+- 页面/渲染类改动不做浏览器视觉验证、不新建临时验证页或挂载页；交付标准是类型检查通过 + 接口对接正确。

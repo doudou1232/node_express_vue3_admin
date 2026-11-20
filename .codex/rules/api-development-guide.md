@@ -279,20 +279,20 @@ return response.json({
 
 | 状态码 | 含义 | 使用时机 |
 |--------|------|----------|
-| 200 | 成功（默认） | 查询成功、更新成功、删除成功 |
-| 201 | 创建成功 | POST 创建资源成功时 |
+| 200 | 成功（默认） | 查询、创建、更新、删除成功（本项目不使用 201） |
 | 400 | 参数错误 | 必填字段缺失、类型不匹配 |
 | 404 | 资源不存在 | 按 ID 查/改/删时没有匹配的记录 |
 | 409 | 冲突 | 唯一键重复（如用户名已存在） |
 | 500 | 服务器错误 | catch 块中的兜底响应 |
+| 特例 401 | 未登录/token 过期 | HTTP 200 + body.code 401，由 authenticate 中间件统一返回 |
 
 ## 错误码与响应格式
 
-所有接口统一返回 `{ code, message, data }` 格式：
+所有接口统一返回 `{ code, message, data }` 格式，`code` 与 HTTP 状态码一致，前端统一用 `res.code === 200` 判断成功：
 
 ```js
 {
-  "code": 0,          // 0 = 成功，非 0 = 对应 HTTP 状态码
+  "code": 200,        // 与 HTTP 状态码一致；唯一特例 401：HTTP 200 + code 401（未登录）
   "message": "操作成功",
   "data": { ... }     // 业务数据，无数据时传 null
 }
@@ -306,7 +306,7 @@ return response.json({
 async function getXxx(request, response) {
   try {
     const result = await findXxx();
-    return response.json({ code: 0, message: '查询成功', data: result });
+    return response.json({ code: 200, message: '查询成功', data: result });
   } catch (error) {
     console.error('查询失败：', error.message);
     return response.status(500).json({ code: 500, message: '查询失败', data: null });
@@ -335,7 +335,7 @@ async function addXxx(request, response) {
   // 4. 调用 service
   try {
     const item = await createXxx(cleaned);
-    return response.status(201).json({ code: 0, message: '创建成功', data: item });
+    return response.json({ code: 200, message: '创建成功', data: item });
   } catch (error) {
     // 5. 唯一键冲突处理
     if (error.code === 'ER_DUP_ENTRY') {
@@ -372,7 +372,7 @@ async function deleteXxx(request, response) {
     return response.status(404).json({ code: 404, message: '数据不存在', data: null });
   }
 
-  return response.json({ code: 0, message: '删除成功', data: result });
+  return response.json({ code: 200, message: '删除成功', data: result });
 }
 ```
 
@@ -427,29 +427,49 @@ router.post('/:id/status', updateStatus);
 
 ```js
 const express = require('express');
-const { addArticle, deleteArticle, getArticles } = require('@/controllers/article.controller');
+const {
+  addArticle,
+  updateArticle,
+  deleteArticle,
+  getArticleList,
+  getArticleById,
+  getArticleOptions
+} = require('@/controllers/article.controller');
+const { requirePerms } = require('@/middlewares/auth.middleware');
+const { PERMISSIONS } = require('@/constants/permission');
 
 const router = express.Router();
 
-router.post('/add', addArticle);           // POST /api/articles/add
-router.delete('/delete/:id', deleteArticle); // DELETE /api/articles/delete/:id
-router.get('/', getArticles);               // GET  /api/articles
+// 新增：需要 article:create 权限
+router.post('/add', requirePerms(PERMISSIONS.ARTICLE_CREATE), addArticle);
+// 更新/删除：标识走 body，与 users / cases 模块风格一致
+router.post('/update', requirePerms(PERMISSIONS.ARTICLE_UPDATE), updateArticle);
+router.post('/delete', requirePerms(PERMISSIONS.ARTICLE_DELETE), deleteArticle);
+// 选项接口必须注册在 /:id 之前，否则会被当作 id 参数命中
+router.get('/options', requirePerms(PERMISSIONS.ARTICLE_VIEW), getArticleOptions);
+// 详情走路径参数
+router.get('/:id', requirePerms(PERMISSIONS.ARTICLE_VIEW), getArticleById);
+// 列表查询（条件 + 分页放 body）
+router.post('/', requirePerms(PERMISSIONS.ARTICLE_VIEW), getArticleList);
 
 module.exports = router;
 ```
 
-## RESTful 路径命名约定
+免鉴权路由（如 login / refresh-token）不加中间件，并在行内注释说明原因，参考 `src/routes/auth/index.js`。
 
-| 操作 | 方法 | 路径模式 | 示例 |
-|------|------|----------|------|
-| 查询列表 | GET | `/` | `GET /api/users` |
-| 查询单条 | GET | `/:id` | `GET /api/users/1` |
-| 创建 | POST | `/add` | `POST /api/users/add` |
-| 全量更新 | PUT | `/:id` | `PUT /api/users/1` |
-| 部分更新 | PATCH | `/:id` | `PATCH /api/users/1` |
-| 删除 | DELETE | `/delete/:id` | `DELETE /api/users/delete/1` |
+## 项目实际路由风格（users / cases 已统一，保持一致）
 
-当前项目使用 `/add` 和 `/delete/:id` 的动词式风格，保持一致即可。
+| 操作 | 方法 | 路径模式 | 标识位置 | 示例 |
+|------|------|----------|---------|------|
+| 查询列表（条件+分页） | POST | `/` | body | `POST /api/cases` |
+| 选项下拉 | GET | `/options` | — | `GET /api/users/options` |
+| 详情 | GET | `/:id` | 路径参数 | `GET /api/users/:userid` |
+| 创建 | POST | `/add` | body | `POST /api/cases/add` |
+| 更新 | POST | `/update` | body（userid / caseguid） | `POST /api/users/update` |
+| 删除 | POST | `/delete` | body（userid / caseguid） | `POST /api/cases/delete` |
+| 资源子操作 | POST | `/:资源标识/stage` | 路径参数 | `POST /api/cases/:caseguid/stage` |
+
+约定：更新/删除的标识放 body（保持与 users、cases 模块一致）；详情与子操作走路径参数；`/options` 必须注册在 `/:id` 之前。
 
 ---
 
@@ -476,6 +496,7 @@ app.use('/api/articles', articleRoutes);
 
 ```js
 const express = require('express');
+const { authenticate } = require('@/middlewares/auth.middleware');
 const userRoutes = require('@/routes/users');
 const articleRoutes = require('@/routes/articles'); // ← 新增
 
@@ -488,8 +509,11 @@ function createApp() {
     response.json({ message: 'Express 项目已成功运行' });
   });
 
-  app.use('/api/users', userRoutes);
-  app.use('/api/articles', articleRoutes); // ← 新增
+  // 免鉴权模块（login/refresh-token 内部自行处理）：直接挂载
+  // app.use('/api/auth', authRoutes);
+  // 需登录模块：挂载处统一加 authenticate，控制器可直接取 request.user
+  app.use('/api/users', authenticate, userRoutes);
+  app.use('/api/articles', authenticate, articleRoutes); // ← 新增
 
   return app;
 }

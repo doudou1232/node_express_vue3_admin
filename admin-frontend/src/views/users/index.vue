@@ -6,7 +6,7 @@ import { ElMessage,ElMessageBox  } from "element-plus";
 import { useUsersStore } from "@/store/modules/users";
 import { formatRoles } from "@/constants/permission";
 import UserDetailDialog from "@/views/users/components/UserDetailDialog.vue";
-import AddOrEditUserDialog from "@/views/users/components/addOrEditUserDialog.vue";
+import AddOrEditUserDialog from "@/views/users/components/AddOrEditUserDialog.vue";
 defineOptions({
   name: "UserList"
 });

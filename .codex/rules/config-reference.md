@@ -17,12 +17,15 @@ alwaysApply: false
 ## `.env` 环境变量
 
 ```ini
-PORT=3000          # Express 监听端口
-DB_HOST=127.0.0.1  # MySQL 地址
-DB_PORT=3306       # MySQL 端口
-DB_USER=root       # MySQL 用户名
-DB_PASSWORD=...    # MySQL 密码
-DB_NAME=test_db    # 数据库名
+PORT=3000               # Express 监听端口
+DB_HOST=127.0.0.1       # MySQL 地址
+DB_PORT=3306            # MySQL 端口
+DB_USER=root            # MySQL 用户名
+DB_PASSWORD=...         # MySQL 密码
+DB_NAME=test_db         # 数据库名
+TOKEN_SECRET=...        # token 签名密钥（代码有默认值，生产环境必须注入）
+TOKEN_EXPIRES_IN_DAYS=7 # token 有效期天数（可选，默认 7）
+UPLOAD_ROOT=...         # 上传根目录（可选，默认 admin-backend/uploads）
 ```
 
 - `index.js` 中 `require('dotenv').config()` 必须在其他业务模块加载前执行。
